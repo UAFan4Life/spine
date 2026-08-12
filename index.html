@@ -561,6 +561,7 @@
     messagingSenderId: "1069970359840",
     appId: "1:1069970359840:web:46e525a06c32df689ede45"
   };
+  const OWNER_UID = 'Oc0mT4dpfaP3gI1C4EvXRPY7vYR2'; // only this account may sign in (also enforced server-side in Firestore rules)
   let fbAuth = null, fbDb = null, fbUser = null, unsubMovies = null;
   const cloudOn = () => !!fbUser && !!fbDb;
   const FORMAT_TYPES = ['4K UHD','Blu-ray','DVD','Digital'];
@@ -1256,6 +1257,11 @@
     fbDb = firebase.firestore();
     fbDb.enablePersistence({synchronizeTabs:true}).catch(()=>{}); // offline cache; fails harmlessly if unsupported
     fbAuth.onAuthStateChanged(async user=>{
+      if(user && user.uid !== OWNER_UID){
+        fbAuth.signOut(); // fires this handler again with user = null
+        showToast('This app is private', true);
+        return;
+      }
       fbUser = user;
       updateAuthUI();
       if(unsubMovies){ unsubMovies(); unsubMovies = null; }
