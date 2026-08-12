@@ -449,6 +449,23 @@
     width:100%; margin-top:10px;
   }
 
+  .tag-color-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:11px 0; border-bottom:1px solid var(--border-soft);
+  }
+  .tag-color-row:last-child{border-bottom:none;}
+  .tag-color-name{
+    font-size:13px; padding:3px 9px; border-radius:6px;
+    background:var(--surface-2); color:var(--text-dim);
+  }
+  .color-dots{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;}
+  .color-dot{
+    width:22px; height:22px; border-radius:50%; padding:0;
+    border:2px solid transparent; font-size:10px; line-height:1; color:var(--text-faint);
+  }
+  .color-dot.none{background:var(--surface-2); border-color:var(--border);}
+  .color-dot.selected{border-color:#fff;}
+
   .confirm-overlay{
     position:fixed; inset:0; background:rgba(10,10,14,0.8); z-index:70;
     display:none; align-items:center; justify-content:center; padding:20px;
@@ -484,6 +501,7 @@
             <button id="importBtn">⬆ Import backup (.json)</button>
             <button id="tmdbKeyBtn">🔑 TMDB API key</button>
             <button id="omdbKeyBtn">🎬 OMDb key (IMDb ratings)</button>
+            <button id="tagColorBtn">🎨 Tag colors</button>
             <button class="danger-item" id="clearAllBtn">✕ Clear all data</button>
           </div>
         </div>
@@ -508,6 +526,8 @@
       <select class="sort-select" id="sortSelect">
         <option value="recent">Recently added</option>
         <option value="title">Title A–Z</option>
+        <option value="year-new">Year: newest</option>
+        <option value="year-old">Year: oldest</option>
         <option value="price-high">Price: high–low</option>
         <option value="rating">Rating: high–low</option>
       </select>
@@ -614,6 +634,17 @@
     </div>
   </div>
 
+  <!-- Tag colors -->
+  <div class="modal-overlay" id="tagColorOverlay">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <div class="modal-title">Tag Colors</div>
+        <button class="icon-btn" id="closeTagColorBtn" aria-label="Close">✕</button>
+      </div>
+      <div id="tagColorList"></div>
+    </div>
+  </div>
+
   <!-- Confirm dialog -->
   <div class="confirm-overlay" id="confirmOverlay">
     <div class="confirm-box">
@@ -664,6 +695,19 @@
   let viewMode = localStorage.getItem('view-mode') || 'grid';
   let activeCollection = '';
   let pendingConfirm = null;
+
+  // ---------- Tag colors ----------
+  const TAG_PALETTE = ['#d9635a','#e08b3b','#d4a537','#5fbf6f','#2fa8a1','#3b66e0','#9b59d0','#e0637a'];
+  let tagColors = {};
+  try{ tagColors = JSON.parse(localStorage.getItem('tag-colors') || '{}') || {}; }catch(e){}
+  function tagStyle(t){
+    const c = tagColors[t];
+    return c ? `color:${c}; background:${c}26;` : '';
+  }
+  function saveTagColors(){
+    localStorage.setItem('tag-colors', JSON.stringify(tagColors));
+    if(cloudOn()) settingsDoc().set({tagColors}, {mergeFields:['tagColors']}).catch(()=>{});
+  }
 
   const $ = id => document.getElementById(id);
 
@@ -733,6 +777,13 @@
       const cloudOmdb = sdata.omdbKey || '';
       if(cloudOmdb && !omdbKey()) localStorage.setItem('omdb-api-key', cloudOmdb);
       else if(!cloudOmdb && omdbKey()) await settingsDoc().set({omdbKey: omdbKey()}, {merge:true});
+      const cloudColors = sdata.tagColors || {};
+      if(Object.keys(cloudColors).length){
+        tagColors = Object.assign({}, tagColors, cloudColors);
+        localStorage.setItem('tag-colors', JSON.stringify(tagColors));
+      } else if(Object.keys(tagColors).length){
+        await settingsDoc().set({tagColors}, {mergeFields:['tagColors']});
+      }
     }catch(e){
       setSyncState('error');
     }
@@ -843,6 +894,8 @@
     }
     switch(sortBy){
       case 'title': list.sort((a,b)=>(a.title||'').localeCompare(b.title||'')); break;
+      case 'year-new': list.sort((a,b)=> (b.year||0) - (a.year||0)); break;
+      case 'year-old': list.sort((a,b)=> (a.year||9999) - (b.year||9999)); break;
       case 'price-high': list.sort((a,b)=> priceOf(b) - priceOf(a)); break;
       case 'rating': list.sort((a,b)=> (b.rating||0) - (a.rating||0)); break;
       default: list.sort((a,b)=> (b.dateAdded||0) - (a.dateAdded||0));
@@ -901,7 +954,7 @@
     const badges = formats.map(f => `<span class="badge ${FORMAT_CLASS[f.type]}">${escapeHtml(f.type)}</span>`).join('');
     const stars = [1,2,3,4,5].map(i => `<span class="star-static ${i<=(m.rating||0)?'filled':''}">★</span>`).join('');
     const price = priceOf(m);
-    const tags = (m.tags||[]).slice(0,2).map(t=>`<span class="tag-pill-mini">${escapeHtml(t)}</span>`).join('');
+    const tags = (m.tags||[]).slice(0,2).map(t=>`<span class="tag-pill-mini" style="${tagStyle(t)}">${escapeHtml(t)}</span>`).join('');
     const letter = (m.title||'?').charAt(0).toUpperCase();
     const posterSrc = m.posterData || m.posterUrl || '';
     const posterBlock = posterSrc
@@ -1246,6 +1299,11 @@
       const pill = document.createElement('span');
       pill.className = 'pill';
       pill.innerHTML = `${escapeHtml(val)} <button type="button" aria-label="Remove">✕</button>`;
+      if(wrapId === 'tagsWrap' && tagColors[val]){
+        pill.style.color = tagColors[val];
+        pill.style.background = tagColors[val] + '26';
+        pill.style.borderColor = tagColors[val] + '55';
+      }
       pill.querySelector('button').addEventListener('click', ()=>{
         const idx = arr.indexOf(val);
         if(idx > -1) arr.splice(idx, 1);
@@ -1520,6 +1578,38 @@
   $('omdbKeyBtn').addEventListener('click', ()=>{
     $('menuDropdown').classList.remove('open');
     promptOmdbKey();
+  });
+
+  function renderTagColorList(){
+    const tags = allTags();
+    if(!tags.length){
+      $('tagColorList').innerHTML = '<p style="color:var(--text-dim); font-size:13.5px;">No tags yet — add tags to some movies first.</p>';
+      return;
+    }
+    $('tagColorList').innerHTML = tags.map(t=>`
+      <div class="tag-color-row">
+        <span class="tag-color-name" style="${tagStyle(t)}">${escapeHtml(t)}</span>
+        <span class="color-dots">
+          <button class="color-dot none ${!tagColors[t] ? 'selected' : ''}" data-tag="${escapeHtml(t)}" data-color="" title="No color">✕</button>
+          ${TAG_PALETTE.map(c=>`<button class="color-dot ${tagColors[t] === c ? 'selected' : ''}" style="background:${c}" data-tag="${escapeHtml(t)}" data-color="${c}" title="${c}"></button>`).join('')}
+        </span>
+      </div>`).join('');
+  }
+  $('tagColorBtn').addEventListener('click', ()=>{
+    $('menuDropdown').classList.remove('open');
+    renderTagColorList();
+    $('tagColorOverlay').classList.add('open');
+  });
+  $('closeTagColorBtn').addEventListener('click', ()=> $('tagColorOverlay').classList.remove('open'));
+  $('tagColorOverlay').addEventListener('click', e=>{ if(e.target === $('tagColorOverlay')) $('tagColorOverlay').classList.remove('open'); });
+  $('tagColorList').addEventListener('click', e=>{
+    const dot = e.target.closest('.color-dot'); if(!dot) return;
+    const tag = dot.dataset.tag;
+    if(dot.dataset.color) tagColors[tag] = dot.dataset.color;
+    else delete tagColors[tag];
+    saveTagColors();
+    renderTagColorList();
+    render(); // refresh card pills
   });
 
   $('authBtn').addEventListener('click', async ()=>{
