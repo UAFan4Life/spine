@@ -149,6 +149,13 @@
   .chip.fmt-bluray.active{color:var(--c-bluray); background:rgba(59,102,224,0.12);}
   .chip.fmt-dvd.active{color:var(--c-dvd); background:rgba(132,129,160,0.12);}
   .chip.fmt-digital.active{color:var(--c-digital); background:rgba(180,99,209,0.12);}
+  .collection-bar{
+    max-width:1100px; margin:10px auto 0;
+    display:flex; gap:6px; overflow-x:auto; padding-bottom:2px;
+  }
+  .collection-bar:empty{display:none;}
+  .collection-bar .chip{flex:0 0 auto;}
+  .chip.coll.active{color:var(--accent-light); background:rgba(212,165,55,0.14); border-color:currentColor;}
   .sort-select{
     margin-left:auto;
     background:var(--surface); border:1px solid var(--border); color:var(--text-dim);
@@ -506,6 +513,7 @@
       </select>
       <button class="view-toggle" id="viewToggle" title="List view">☰</button>
     </div>
+    <div class="collection-bar" id="collectionChips"></div>
   </header>
 
   <main>
@@ -654,6 +662,7 @@
   let pendingUpc = '';
   let formRuntime = null, formImdbRating = null, formTmdbRating = null, formImdbId = '';
   let viewMode = localStorage.getItem('view-mode') || 'grid';
+  let activeCollection = '';
   let pendingConfirm = null;
 
   const $ = id => document.getElementById(id);
@@ -821,6 +830,9 @@
     if(activeFormatFilters.size){
       list = list.filter(m => (m.formats||[]).some(f => activeFormatFilters.has(f.type)));
     }
+    if(activeCollection){
+      list = list.filter(m => (m.collections||[]).includes(activeCollection));
+    }
     if(searchQuery.trim()){
       const q = searchQuery.trim().toLowerCase();
       list = list.filter(m =>
@@ -919,8 +931,23 @@
       </div>`;
   }
 
+  function renderCollectionChips(){
+    const cols = allCollections();
+    if(activeCollection && !cols.includes(activeCollection)) activeCollection = '';
+    $('collectionChips').innerHTML = cols.map(c=>
+      `<button class="chip coll ${c === activeCollection ? 'active' : ''}" data-coll="${escapeHtml(c)}">${escapeHtml(c)}</button>`
+    ).join('');
+  }
+  $('collectionChips').addEventListener('click', e=>{
+    const btn = e.target.closest('button'); if(!btn) return;
+    activeCollection = (activeCollection === btn.dataset.coll) ? '' : btn.dataset.coll;
+    renderCollectionChips();
+    renderMovies();
+  });
+
   function render(){
     renderStats();
+    renderCollectionChips();
     renderMovies();
     updateSuggestionLists();
   }
@@ -1288,8 +1315,8 @@
     editingId = null;
     formFormats = {};
     formRating = 0;
-    formTags = [];
-    formCollections = [];
+    formTags.length = 0;        // mutate in place — the pill inputs hold references to these arrays
+    formCollections.length = 0;
     $('movieForm').reset();
     $('titleInput').value = '';
     $('yearInput').value = '';
@@ -1339,8 +1366,10 @@
     formFormats = {};
     (m.formats||[]).forEach(f=> formFormats[f.type] = f.price || '');
     formRating = m.rating || 0;
-    formTags = (m.tags||[]).slice();
-    formCollections = (m.collections||[]).slice();
+    formTags.length = 0;
+    (m.tags||[]).forEach(t=> formTags.push(t));
+    formCollections.length = 0;
+    (m.collections||[]).forEach(c=> formCollections.push(c));
     buildFormatGrid();
     buildStarPicker();
     buildPills('tagsWrap', formTags, 'tagsInput');
