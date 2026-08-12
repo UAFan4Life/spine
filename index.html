@@ -412,6 +412,7 @@
         <div style="position:relative;">
           <button class="icon-btn" id="menuBtn" aria-label="Menu">⋯</button>
           <div class="menu-dropdown" id="menuDropdown">
+            <button id="authBtn" style="display:none;">👤 Sign in with Google to sync</button>
             <button id="exportBtn">⬇ Export backup (.json)</button>
             <button id="importBtn">⬆ Import backup (.json)</button>
             <button id="tmdbKeyBtn">🔑 TMDB API key</button>
@@ -545,9 +546,23 @@
     </div>
   </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script>
 (function(){
   const STORAGE_KEY = 'movies-collection';
+  // ---------- Firebase config (public identifiers — security lives in Firestore rules) ----------
+  const FIREBASE_CONFIG = {
+    apiKey: "AIzaSyCCLIoRB8JffR1cpjU7nd8sk_YzifI9iWU",
+    authDomain: "spine-c9175.firebaseapp.com",
+    projectId: "spine-c9175",
+    storageBucket: "spine-c9175.firebasestorage.app",
+    messagingSenderId: "1069970359840",
+    appId: "1:1069970359840:web:46e525a06c32df689ede45"
+  };
+  let fbAuth = null, fbDb = null, fbUser = null, unsubMovies = null;
+  const cloudOn = () => !!fbUser && !!fbDb;
   const FORMAT_TYPES = ['4K UHD','Blu-ray','DVD','Digital'];
   const FORMAT_CLASS = {'4K UHD':'fmt-4k','Blu-ray':'fmt-bluray','DVD':'fmt-dvd','Digital':'fmt-digital'};
 
@@ -581,11 +596,12 @@
   function setSyncState(state){
     const dot = $('syncDot'), label = $('syncLabel');
     dot.className = 'sync-dot' + (state === 'syncing' ? ' syncing' : state === 'error' ? ' error' : '');
-    label.textContent = state === 'syncing' ? 'syncing…' : state === 'error' ? 'error' : 'on device';
+    label.textContent = state === 'syncing' ? 'syncing…' : state === 'error' ? 'error' : (cloudOn() ? 'synced' : 'on device');
   }
 
-  // localStorage for now — Firebase sync replaces this layer in Web Phase 2
+  // localStorage path — used when signed out; Firestore takes over when signed in
   async function loadMovies(){
+    if(cloudOn()) return; // snapshot listener owns the data while signed in
     try{
       const raw = localStorage.getItem(STORAGE_KEY);
       movies = raw ? JSON.parse(raw) : [];
@@ -605,6 +621,48 @@
       setSyncState('error');
       showToast('Could not save — device storage full?', true);
     }
+  }
+
+  // ---------- Cloud sync (Firestore) ----------
+  function userCol(){ return fbDb.collection('users').doc(fbUser.uid).collection('movies'); }
+  function settingsDoc(){ return fbDb.collection('users').doc(fbUser.uid).collection('meta').doc('settings'); }
+
+  async function firstSyncMerge(){
+    try{
+      const snap = await userCol().get();
+      const cloudIds = new Set(snap.docs.map(d=>d.id));
+      const localRaw = localStorage.getItem(STORAGE_KEY);
+      const local = localRaw ? JSON.parse(localRaw) : [];
+      const toUpload = local.filter(m=>m && m.id && !cloudIds.has(m.id));
+      for(let i=0; i<toUpload.length; i+=450){
+        const batch = fbDb.batch();
+        toUpload.slice(i, i+450).forEach(m=> batch.set(userCol().doc(m.id), m));
+        await batch.commit();
+      }
+      // TMDB key: adopt the cloud copy, or seed the cloud from this device
+      const sdoc = await settingsDoc().get();
+      const cloudKey = sdoc.exists ? (sdoc.data().tmdbKey || '') : '';
+      if(cloudKey && !tmdbKey()) localStorage.setItem('tmdb-api-key', cloudKey);
+      else if(!cloudKey && tmdbKey()) await settingsDoc().set({tmdbKey: tmdbKey()}, {merge:true});
+    }catch(e){
+      setSyncState('error');
+    }
+  }
+
+  function subscribeMovies(){
+    unsubMovies = userCol().onSnapshot(snap=>{
+      movies = snap.docs.map(d=>d.data());
+      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(movies)); }catch(e){}
+      setSyncState('ok');
+      render();
+    }, ()=> setSyncState('error'));
+  }
+
+  function updateAuthUI(){
+    const b = $('authBtn');
+    if(!FIREBASE_CONFIG){ b.style.display = 'none'; return; }
+    b.style.display = 'block';
+    b.textContent = fbUser ? ('⏻ Sign out (' + (fbUser.displayName || fbUser.email || 'account') + ')') : '👤 Sign in with Google to sync';
   }
 
   // ---------- Toast ----------
@@ -783,6 +841,7 @@
     const k = prompt('Paste your free TMDB API key (v3).\nGet one at themoviedb.org → Settings → API → Request API key.', tmdbKey());
     if(k === null) return;
     localStorage.setItem('tmdb-api-key', k.trim());
+    if(cloudOn()) settingsDoc().set({tmdbKey: k.trim()}, {merge:true}).catch(()=>{});
     showToast(k.trim() ? 'TMDB key saved' : 'TMDB key cleared');
   }
   let lookupTimer = null;
@@ -1042,6 +1101,13 @@
       notes: $('notesInput').value.trim(),
       dateAdded: existing ? (existing.dateAdded || Date.now()) : Date.now()
     };
+    if(cloudOn()){
+      // Firestore latency compensation fires the snapshot immediately, even offline
+      userCol().doc(data.id).set(data).catch(()=>{ setSyncState('error'); });
+      closeModal();
+      showToast('Saved');
+      return;
+    }
     if(editingId){
       const idx = movies.findIndex(m=>m.id===editingId);
       if(idx>-1) movies[idx] = data;
@@ -1054,8 +1120,14 @@
   });
 
   $('deleteBtn').addEventListener('click', ()=>{
+    const delId = editingId;
     askConfirm('Delete this entry?', 'This removes it from your collection permanently.', async ()=>{
-      movies = movies.filter(m=>m.id!==editingId);
+      if(cloudOn()){
+        userCol().doc(delId).delete().catch(()=> setSyncState('error'));
+        closeModal();
+        return;
+      }
+      movies = movies.filter(m=>m.id!==delId);
       closeModal();
       render();
       await saveMovies();
@@ -1107,7 +1179,16 @@
         if(!Array.isArray(imported)) throw new Error('bad format');
         askConfirm('Import backup?', `This will add ${imported.length} entries, merging with your current collection.`, async ()=>{
           const existingIds = new Set(movies.map(m=>m.id));
-          imported.forEach(m=>{ if(!existingIds.has(m.id)) movies.push(m); });
+          const fresh = imported.filter(m=>m && m.id && !existingIds.has(m.id));
+          if(cloudOn()){
+            for(let i=0; i<fresh.length; i+=450){
+              const batch = fbDb.batch();
+              fresh.slice(i, i+450).forEach(m=> batch.set(userCol().doc(m.id), m));
+              batch.commit().catch(()=> setSyncState('error'));
+            }
+            return;
+          }
+          fresh.forEach(m=> movies.push(m));
           render();
           await saveMovies();
         });
@@ -1124,9 +1205,33 @@
     promptTmdbKey();
   });
 
+  $('authBtn').addEventListener('click', async ()=>{
+    $('menuDropdown').classList.remove('open');
+    if(!fbAuth) return;
+    if(fbUser){ fbAuth.signOut(); return; }
+    const provider = new firebase.auth.GoogleAuthProvider();
+    try{
+      await fbAuth.signInWithPopup(provider);
+    }catch(e){
+      // popups can be blocked in installed/standalone mode — fall back to full-page redirect
+      try{ await fbAuth.signInWithRedirect(provider); }
+      catch(e2){ showToast('Sign-in failed', true); }
+    }
+  });
+
   $('clearAllBtn').addEventListener('click', ()=>{
     $('menuDropdown').classList.remove('open');
-    askConfirm('Clear everything?', 'This deletes your entire collection from this device. This cannot be undone.', async ()=>{
+    askConfirm('Clear everything?', 'This deletes your entire collection ' + (cloudOn() ? 'from all synced devices.' : 'from this device.') + ' This cannot be undone.', async ()=>{
+      if(cloudOn()){
+        const ids = movies.map(m=>m.id);
+        for(let i=0; i<ids.length; i+=450){
+          const batch = fbDb.batch();
+          ids.slice(i, i+450).forEach(id=> batch.delete(userCol().doc(id)));
+          batch.commit().catch(()=> setSyncState('error'));
+        }
+        localStorage.removeItem(STORAGE_KEY);
+        return;
+      }
       movies = [];
       render();
       await saveMovies();
@@ -1144,7 +1249,28 @@
   });
 
   // ---------- Init ----------
-  loadMovies();
+  updateAuthUI();
+  if(FIREBASE_CONFIG && window.firebase){
+    firebase.initializeApp(FIREBASE_CONFIG);
+    fbAuth = firebase.auth();
+    fbDb = firebase.firestore();
+    fbDb.enablePersistence({synchronizeTabs:true}).catch(()=>{}); // offline cache; fails harmlessly if unsupported
+    fbAuth.onAuthStateChanged(async user=>{
+      fbUser = user;
+      updateAuthUI();
+      if(unsubMovies){ unsubMovies(); unsubMovies = null; }
+      if(user){
+        setSyncState('syncing');
+        await firstSyncMerge();
+        subscribeMovies();
+      } else {
+        setSyncState('ok');
+        loadMovies();
+      }
+    });
+  } else {
+    loadMovies();
+  }
 })();
 </script>
 </body>
