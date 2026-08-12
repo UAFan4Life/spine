@@ -154,6 +154,11 @@
     background:var(--surface); border:1px solid var(--border); color:var(--text-dim);
     border-radius:var(--radius-sm); padding:7px 10px; font-size:12.5px;
   }
+  .view-toggle{
+    background:var(--surface); border:1px solid var(--border); color:var(--text-dim);
+    border-radius:var(--radius-sm); padding:5px 11px; font-size:15px; line-height:1;
+  }
+  .view-toggle:hover{color:var(--text); border-color:var(--accent);}
 
   /* ---------- Grid ---------- */
   .movie-grid{
@@ -196,7 +201,17 @@
     font-family:var(--font-display); font-size:19px; letter-spacing:.5px;
     line-height:1.05; color:var(--text);
   }
-  .card-year{font-family:var(--font-mono); font-size:11px; color:var(--text-faint);}
+  .card-year{font-family:var(--font-mono); font-size:11.5px; color:var(--accent-light);}
+  .score-row{display:flex; align-items:center; gap:6px; margin-top:3px;}
+  .score-stars{
+    position:relative; display:inline-block; line-height:1;
+    font-size:13px; letter-spacing:1px; color:var(--border);
+  }
+  .score-stars-fill{
+    position:absolute; top:0; left:0; bottom:0; overflow:hidden; white-space:nowrap;
+    color:var(--accent);
+  }
+  .score-num{font-family:var(--font-mono); font-size:10.5px; color:var(--accent-light);}
   .badges{display:flex; flex-wrap:wrap; gap:4px; margin-top:2px;}
   .badge{
     font-family:var(--font-mono); font-size:9.5px; font-weight:700; letter-spacing:.4px;
@@ -219,6 +234,27 @@
     padding:2px 6px; border-radius:5px;
   }
 
+  /* ---------- List view ---------- */
+  .movie-grid.list-mode{display:flex; flex-direction:column; gap:8px;}
+  .list-mode .movie-card{flex-direction:row; align-items:center; gap:12px; padding:8px 12px 8px 8px;}
+  .list-mode .poster, .list-mode .poster-placeholder{
+    width:44px; min-width:44px; aspect-ratio:2/3; border-radius:6px; font-size:18px;
+  }
+  .list-mode .card-hole{display:none;}
+  .list-mode .wishlist-ribbon{top:6px; font-size:8.5px; padding:2px 8px 2px 10px;}
+  .list-mode .card-body{padding:0; flex-direction:row; align-items:center; gap:12px; flex-wrap:wrap;}
+  .list-mode .card-title{font-size:16.5px;}
+  .list-mode .badges{margin-top:0;}
+  .list-mode .stars-row{margin-top:0;}
+  .list-mode .score-row{margin-top:0;}
+  .list-mode .card-footer{margin-top:0; margin-left:auto; padding-top:0; gap:10px;}
+
+  .dupe-warn{
+    display:none; margin-top:6px;
+    font-family:var(--font-mono); font-size:11.5px; color:var(--wishlist);
+  }
+  .dupe-warn.show{display:block;}
+
   .empty-state{
     max-width:420px; margin:60px auto; text-align:center; padding:0 20px;
     color:var(--text-dim);
@@ -238,6 +274,30 @@
   }
   .fab:hover{transform:scale(1.06);}
   .fab:active{transform:scale(0.96);}
+
+  .fab-scan{
+    position:fixed; right:26px; bottom:96px; z-index:25;
+    width:46px; height:46px; border-radius:50%;
+    background:var(--surface-2); color:var(--text); border:1px solid var(--border);
+    font-family:var(--font-mono); font-size:9.5px; font-weight:700; letter-spacing:1px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .fab-scan:hover{border-color:var(--accent); color:var(--accent-light);}
+
+  /* ---------- Barcode scanner ---------- */
+  .scan-overlay{position:fixed; inset:0; background:#000; z-index:80; display:none; align-items:center; justify-content:center;}
+  .scan-overlay.open{display:flex;}
+  #scanVideo{position:absolute; inset:0; width:100%; height:100%; object-fit:cover;}
+  .scan-frame{
+    position:relative; width:min(80vw,420px); height:150px; z-index:1;
+    border:2px solid var(--accent); border-radius:12px;
+    box-shadow:0 0 0 100vmax rgba(0,0,0,0.45);
+  }
+  .scan-hint{
+    position:absolute; bottom:72px; left:0; right:0; text-align:center; z-index:2;
+    color:#fff; font-size:14px; text-shadow:0 1px 4px #000;
+  }
+  .scan-close{position:absolute; top:18px; right:18px; z-index:2;}
 
   /* ---------- Toast ---------- */
   .toast{
@@ -416,6 +476,7 @@
             <button id="exportBtn">⬇ Export backup (.json)</button>
             <button id="importBtn">⬆ Import backup (.json)</button>
             <button id="tmdbKeyBtn">🔑 TMDB API key</button>
+            <button id="omdbKeyBtn">🎬 OMDb key (IMDb ratings)</button>
             <button class="danger-item" id="clearAllBtn">✕ Clear all data</button>
           </div>
         </div>
@@ -443,6 +504,7 @@
         <option value="price-high">Price: high–low</option>
         <option value="rating">Rating: high–low</option>
       </select>
+      <button class="view-toggle" id="viewToggle" title="List view">☰</button>
     </div>
   </header>
 
@@ -451,6 +513,15 @@
   </main>
 
   <button class="fab" id="fabAdd" aria-label="Add movie">+</button>
+  <button class="fab-scan" id="scanFab" aria-label="Scan barcode">SCAN</button>
+
+  <!-- Barcode scanner -->
+  <div class="scan-overlay" id="scanOverlay">
+    <video id="scanVideo" playsinline muted></video>
+    <div class="scan-frame"></div>
+    <div class="scan-hint">Point at the barcode on the back of the case</div>
+    <button class="icon-btn scan-close" id="scanCloseBtn" aria-label="Close scanner">✕</button>
+  </div>
   <div class="toast" id="toast"></div>
   <input type="file" id="importFile" accept="application/json" class="visually-hidden">
   <input type="file" id="posterFile" accept="image/*" class="visually-hidden">
@@ -467,6 +538,7 @@
           <label for="titleInput">Title</label>
           <input type="text" id="titleInput" required placeholder="start typing to search…" autocomplete="off">
           <div class="lookup-results" id="lookupResults"></div>
+          <div class="dupe-warn" id="dupeWarn"></div>
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -579,6 +651,9 @@
   let formCollections = [];
   let formPosterData = '';
   let formPosterUrl = '';
+  let pendingUpc = '';
+  let formRuntime = null, formImdbRating = null, formTmdbRating = null, formImdbId = '';
+  let viewMode = localStorage.getItem('view-mode') || 'grid';
   let pendingConfirm = null;
 
   const $ = id => document.getElementById(id);
@@ -642,9 +717,13 @@
       }
       // TMDB key: adopt the cloud copy, or seed the cloud from this device
       const sdoc = await settingsDoc().get();
-      const cloudKey = sdoc.exists ? (sdoc.data().tmdbKey || '') : '';
+      const sdata = sdoc.exists ? sdoc.data() : {};
+      const cloudKey = sdata.tmdbKey || '';
       if(cloudKey && !tmdbKey()) localStorage.setItem('tmdb-api-key', cloudKey);
       else if(!cloudKey && tmdbKey()) await settingsDoc().set({tmdbKey: tmdbKey()}, {merge:true});
+      const cloudOmdb = sdata.omdbKey || '';
+      if(cloudOmdb && !omdbKey()) localStorage.setItem('omdb-api-key', cloudOmdb);
+      else if(!cloudOmdb && omdbKey()) await settingsDoc().set({omdbKey: omdbKey()}, {merge:true});
     }catch(e){
       setSyncState('error');
     }
@@ -695,15 +774,44 @@
   }
 
   // ---------- Rendering ----------
+  function scoreRow(m){
+    const score = m.imdbRating || m.tmdbRating || null;
+    if(!score) return '';
+    const src = m.imdbRating ? 'IMDb' : 'TMDB';
+    const pct = Math.max(0, Math.min(100, score * 10));
+    return `<div class="score-row">
+      <span class="score-stars">★★★★★<span class="score-stars-fill" style="width:${pct}%">★★★★★</span></span>
+      <span class="score-num">${src} ${score}</span>
+    </div>`;
+  }
+
+  function fmtRuntime(min){
+    if(!min) return '';
+    const h = Math.floor(min / 60), m = min % 60;
+    return h > 0 ? h + 'h ' + (m ? m + 'm' : '') : m + 'm';
+  }
+
   function renderStats(){
-    const owned = movies.filter(m=>!m.wishlist).length;
+    const owned = movies.filter(m=>!m.wishlist);
     const wish = movies.filter(m=>m.wishlist).length;
     const spent = totalSpent();
-    $('statsStrip').innerHTML = `
-      <div class="stat-pill"><span class="num">${owned}</span><span class="label">Owned</span></div>
+    const fmtCount = t => owned.filter(m=>(m.formats||[]).some(f=>f.type===t)).length;
+    const totalMin = owned.reduce((s,m)=> s + (m.runtime || 0), 0);
+    const rated = owned.filter(m=> m.imdbRating || m.tmdbRating);
+    const avg = rated.length ? (rated.reduce((s,m)=> s + (m.imdbRating || m.tmdbRating), 0) / rated.length).toFixed(1) : null;
+    let html = `
+      <div class="stat-pill"><span class="num">${owned.length}</span><span class="label">Owned</span></div>
       <div class="stat-pill"><span class="num">${wish}</span><span class="label">Wishlist</span></div>
       <div class="stat-pill"><span class="num">$${spent.toFixed(0)}</span><span class="label">Spent</span></div>
-    `;
+      <div class="stat-pill"><span class="num">${fmtCount('4K UHD')}</span><span class="label">4K</span></div>
+      <div class="stat-pill"><span class="num">${fmtCount('Blu-ray')}</span><span class="label">Blu-ray</span></div>
+      <div class="stat-pill"><span class="num">${fmtCount('DVD')}</span><span class="label">DVD</span></div>
+      <div class="stat-pill"><span class="num">${fmtCount('Digital')}</span><span class="label">Digital</span></div>`;
+    if(totalMin) html += `
+      <div class="stat-pill"><span class="num">${Math.round(totalMin/60)}h</span><span class="label">Shelf time</span></div>`;
+    if(avg) html += `
+      <div class="stat-pill"><span class="num">★${avg}</span><span class="label">Avg score</span></div>`;
+    $('statsStrip').innerHTML = html;
   }
 
   function getFiltered(){
@@ -744,7 +852,7 @@
       showEmptyState('filter');
       return;
     }
-    grid.style.display = 'grid';
+    grid.style.display = ''; // layout comes from .movie-grid / .list-mode classes
     grid.innerHTML = list.map(m => cardHtml(m)).join('');
     grid.querySelectorAll('.movie-card').forEach(card=>{
       card.addEventListener('click', ()=> openEditModal(card.dataset.id));
@@ -795,7 +903,11 @@
         <div class="card-body">
           <div>
             <div class="card-title">${escapeHtml(m.title)}</div>
-            <div class="card-year">${m.year || ''}</div>
+            <div class="card-year">${[
+              m.year,
+              m.runtime ? fmtRuntime(m.runtime) : null
+            ].filter(Boolean).join(' · ')}</div>
+            ${scoreRow(m)}
           </div>
           <div class="badges">${badges}</div>
           ${m.rating ? `<div class="stars-row">${stars}</div>` : ''}
@@ -835,6 +947,18 @@
   });
   $('sortSelect').addEventListener('change', e=>{ sortBy = e.target.value; renderMovies(); });
 
+  function applyViewMode(){
+    $('movieGrid').classList.toggle('list-mode', viewMode === 'list');
+    $('viewToggle').textContent = viewMode === 'list' ? '⊞' : '☰';
+    $('viewToggle').title = viewMode === 'list' ? 'Grid view' : 'List view';
+  }
+  $('viewToggle').addEventListener('click', ()=>{
+    viewMode = viewMode === 'list' ? 'grid' : 'list';
+    localStorage.setItem('view-mode', viewMode);
+    applyViewMode();
+  });
+  applyViewMode();
+
   // ---------- Movie lookup (TMDB — free API key, stored only on this device) ----------
   const TMDB_GENRES = {28:'action',12:'adventure',16:'animation',35:'comedy',80:'crime',99:'documentary',18:'drama',10751:'family',14:'fantasy',36:'history',27:'horror',10402:'music',9648:'mystery',10749:'romance',878:'sci-fi',10770:'tv movie',53:'thriller',10752:'war',37:'western'};
   function tmdbKey(){ return (localStorage.getItem('tmdb-api-key') || '').trim(); }
@@ -845,6 +969,50 @@
     if(cloudOn()) settingsDoc().set({tmdbKey: k.trim()}, {merge:true}).catch(()=>{});
     showToast(k.trim() ? 'TMDB key saved' : 'TMDB key cleared');
   }
+  function omdbKey(){ return (localStorage.getItem('omdb-api-key') || '').trim(); }
+  function promptOmdbKey(){
+    const k = prompt('Paste your free OMDb API key (for real IMDb ratings).\nGet one at omdbapi.com/apikey.aspx — free tier, email only.', omdbKey());
+    if(k === null) return;
+    localStorage.setItem('omdb-api-key', k.trim());
+    if(cloudOn()) settingsDoc().set({omdbKey: k.trim()}, {merge:true}).catch(()=>{});
+    showToast(k.trim() ? 'OMDb key saved' : 'OMDb key cleared');
+  }
+
+  // fetch runtime + IMDb id from TMDB details; real IMDb rating from OMDb when a key is set
+  let extrasSeq = 0;
+  async function fetchMovieExtras(tmdbId, tmdbVote){
+    const seq = ++extrasSeq;
+    formTmdbRating = (tmdbVote || tmdbVote === 0) ? Math.round(tmdbVote * 10) / 10 : null;
+    formRuntime = null; formImdbRating = null; formImdbId = '';
+    if(!tmdbId) return;
+    try{
+      const res = await fetch('https://api.themoviedb.org/3/movie/' + tmdbId + '?api_key=' + encodeURIComponent(tmdbKey()));
+      const d = await res.json();
+      if(seq !== extrasSeq) return;
+      formRuntime = d.runtime || null;
+      formImdbId = d.imdb_id || '';
+      if(formImdbId && omdbKey()){
+        const or = await fetch('https://www.omdbapi.com/?apikey=' + encodeURIComponent(omdbKey()) + '&i=' + encodeURIComponent(formImdbId));
+        const od = await or.json();
+        if(seq !== extrasSeq) return;
+        const iv = parseFloat(od.imdbRating);
+        if(!isNaN(iv)) formImdbRating = iv;
+      }
+    }catch(e){}
+  }
+
+  function checkDuplicate(title){
+    const w = $('dupeWarn');
+    const t = (title || '').trim().toLowerCase();
+    const dupe = t ? movies.find(m => m.id !== editingId && (m.title || '').trim().toLowerCase() === t) : null;
+    if(dupe){
+      const fmts = (dupe.formats || []).map(f=>f.type).join(', ');
+      w.textContent = (dupe.wishlist ? '♥ Already on your wishlist' : '✓ Already in your collection') + (fmts ? ' (' + fmts + ')' : '');
+      w.classList.add('show');
+    } else {
+      w.classList.remove('show');
+    }
+  }
   let lookupTimer = null;
   let lookupSeq = 0;
   function hideLookup(){
@@ -853,6 +1021,7 @@
   }
   $('titleInput').addEventListener('input', ()=>{
     const q = $('titleInput').value.trim();
+    checkDuplicate(q);
     clearTimeout(lookupTimer);
     if(q.length < 3){ hideLookup(); return; }
     lookupTimer = setTimeout(()=> runLookup(q), 450);
@@ -871,6 +1040,8 @@
       const data = await res.json();
       if(seq !== lookupSeq) return; // a newer search superseded this one
       const results = (data.results || []).slice(0,6).map(r=>({
+        id: r.id,
+        vote: (typeof r.vote_average === 'number') ? r.vote_average : null,
         title: r.title,
         year: r.release_date ? parseInt(r.release_date.slice(0,4)) : null,
         genres: (r.genre_ids || []).slice(0,3).map(id=>TMDB_GENRES[id]).filter(Boolean),
@@ -888,6 +1059,8 @@
         btn.addEventListener('click', ()=>{
           const r = results[parseInt(btn.dataset.i)];
           $('titleInput').value = r.title;
+          checkDuplicate(r.title);
+          fetchMovieExtras(r.id, r.vote);
           if(r.year) $('yearInput').value = r.year;
           if(r.poster){ formPosterUrl = r.poster; updatePosterPreview(); }
           let added = false;
@@ -903,6 +1076,101 @@
     }
   }
   document.addEventListener('click', e=>{ if(!e.target.closest('.lookup-wrap')) hideLookup(); });
+
+  // ---------- Barcode scanning ----------
+  let scanStream = null, scanTimer = null, scanReady = false;
+  const normUpc = c => String(c || '').replace(/^0+/, '');
+
+  (async ()=>{
+    try{
+      if('BarcodeDetector' in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
+        const fmts = await BarcodeDetector.getSupportedFormats();
+        scanReady = fmts.includes('upc_a') || fmts.includes('ean_13');
+      }
+    }catch(e){}
+    if(!scanReady) $('scanFab').style.display = 'none';
+  })();
+
+  async function openScanner(){
+    if(!scanReady) return;
+    $('scanOverlay').classList.add('open');
+    try{
+      scanStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}, audio:false});
+      const video = $('scanVideo');
+      video.srcObject = scanStream;
+      await video.play();
+      const detector = new BarcodeDetector({formats:['upc_a','upc_e','ean_13','ean_8']});
+      const tick = async ()=>{
+        if(!scanStream) return;
+        try{
+          const codes = await detector.detect(video);
+          if(codes.length && codes[0].rawValue){
+            if(navigator.vibrate) navigator.vibrate(80);
+            const code = codes[0].rawValue;
+            closeScanner();
+            handleScan(code);
+            return;
+          }
+        }catch(e){}
+        scanTimer = setTimeout(tick, 180);
+      };
+      tick();
+    }catch(e){
+      closeScanner();
+      showToast('Camera unavailable', true);
+    }
+  }
+
+  function closeScanner(){
+    clearTimeout(scanTimer);
+    if(scanStream){ scanStream.getTracks().forEach(t=>t.stop()); scanStream = null; }
+    $('scanVideo').srcObject = null;
+    $('scanOverlay').classList.remove('open');
+  }
+
+  function cleanUpcTitle(t){
+    return t
+      .replace(/\(.*?\)|\[.*?\]/g, ' ')
+      .replace(/\b(4k|ultra\s?hd|uhd|blu-?ray|dvd|digital|steelbook|widescreen|full\s?screen|collector'?s|limited|anniversary|edition|combo|pack|disc|copy|remastered|new|sealed)\b/gi, ' ')
+      .replace(/[+\/|,]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  async function lookupUpc(code){
+    try{
+      const res = await fetch('https://world.openproductsfacts.org/api/v0/product/' + encodeURIComponent(code) + '.json');
+      const data = await res.json();
+      if(data.status === 1 && data.product && data.product.product_name) return data.product.product_name;
+    }catch(e){}
+    return '';
+  }
+
+  async function handleScan(code){
+    const owned = movies.find(m => m.upc && normUpc(m.upc) === normUpc(code));
+    if(owned){
+      showToast((owned.wishlist ? '♥ On your wishlist: ' : '✓ You own this: ') + owned.title);
+      openEditModal(owned.id);
+      return;
+    }
+    showToast('Looking up barcode…');
+    const raw = await lookupUpc(code);
+    openAddModal();
+    pendingUpc = code;
+    if(raw){
+      if(/4k|ultra\s?hd|\buhd\b/i.test(raw)) formFormats['4K UHD'] = '';
+      if(/blu-?ray/i.test(raw)) formFormats['Blu-ray'] = '';
+      if(/\bdvd\b/i.test(raw)) formFormats['DVD'] = '';
+      buildFormatGrid();
+      $('titleInput').value = cleanUpcTitle(raw);
+      $('titleInput').dispatchEvent(new Event('input')); // trigger the TMDB dropdown to confirm the match
+    } else {
+      showToast('Not in the barcode database — type the title', true);
+    }
+  }
+
+  $('scanFab').addEventListener('click', openScanner);
+  $('scanCloseBtn').addEventListener('click', closeScanner);
 
   // ---------- Modal: open/close ----------
   function buildFormatGrid(){
@@ -1027,6 +1295,10 @@
     $('yearInput').value = '';
     formPosterData = '';
     formPosterUrl = '';
+    pendingUpc = '';
+    formRuntime = null; formImdbRating = null; formTmdbRating = null; formImdbId = '';
+    extrasSeq++; // cancel any in-flight extras fetch from a previous form
+    checkDuplicate('');
     updatePosterPreview();
     $('wishlistToggle').checked = false;
     $('wishlistLabel').textContent = 'I own this';
@@ -1055,6 +1327,11 @@
     $('yearInput').value = m.year || '';
     formPosterData = m.posterData || '';
     formPosterUrl = m.posterUrl || '';
+    formRuntime = m.runtime || null;
+    formImdbRating = m.imdbRating || null;
+    formTmdbRating = m.tmdbRating || null;
+    formImdbId = m.imdbId || '';
+    checkDuplicate(m.title);
     updatePosterPreview();
     $('wishlistToggle').checked = !!m.wishlist;
     $('wishlistLabel').textContent = m.wishlist ? 'On my wishlist' : 'I own this';
@@ -1094,6 +1371,11 @@
       year: $('yearInput').value ? parseInt($('yearInput').value) : null,
       posterData: formPosterData,
       posterUrl: formPosterUrl,
+      upc: existing ? (existing.upc || '') : pendingUpc,
+      runtime: formRuntime,
+      imdbRating: formImdbRating,
+      tmdbRating: formTmdbRating,
+      imdbId: formImdbId,
       wishlist: $('wishlistToggle').checked,
       formats,
       rating: formRating,
@@ -1204,6 +1486,11 @@
   $('tmdbKeyBtn').addEventListener('click', ()=>{
     $('menuDropdown').classList.remove('open');
     promptTmdbKey();
+  });
+
+  $('omdbKeyBtn').addEventListener('click', ()=>{
+    $('menuDropdown').classList.remove('open');
+    promptOmdbKey();
   });
 
   $('authBtn').addEventListener('click', async ()=>{
