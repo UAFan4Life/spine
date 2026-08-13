@@ -208,17 +208,22 @@
     font-family:var(--font-display); font-size:19px; letter-spacing:.5px;
     line-height:1.05; color:var(--text);
   }
-  .card-year{font-family:var(--font-mono); font-size:11.5px; color:var(--accent-light);}
-  .score-row{display:flex; align-items:center; gap:6px; margin-top:3px;}
+  .card-year{font-family:var(--font-mono); font-size:12.5px; color:var(--accent-light); margin-top:1px;}
+  .score-block{margin-top:5px; display:flex; flex-direction:column; gap:3px;}
+  .score-row{display:flex; align-items:center; gap:7px;}
+  .score-src{
+    font-family:var(--font-mono); font-size:10px; font-weight:600;
+    color:var(--text-faint); letter-spacing:.6px; width:36px; flex:0 0 auto;
+  }
   .score-stars{
     position:relative; display:inline-block; line-height:1;
-    font-size:13px; letter-spacing:1px; color:var(--border);
+    font-size:14px; letter-spacing:1px; color:var(--border);
   }
   .score-stars-fill{
     position:absolute; top:0; left:0; bottom:0; overflow:hidden; white-space:nowrap;
     color:var(--accent);
   }
-  .score-num{font-family:var(--font-mono); font-size:10.5px; color:var(--accent-light);}
+  .score-num{font-family:var(--font-mono); font-size:12px; font-weight:600; color:var(--accent-light);}
   .badges{display:flex; flex-wrap:wrap; gap:4px; margin-top:2px;}
   .badge{
     font-family:var(--font-mono); font-size:9.5px; font-weight:700; letter-spacing:.4px;
@@ -253,7 +258,7 @@
   .list-mode .card-title{font-size:16.5px;}
   .list-mode .badges{margin-top:0;}
   .list-mode .stars-row{margin-top:0;}
-  .list-mode .score-row{margin-top:0;}
+  .list-mode .score-block{margin-top:0;}
   .list-mode .card-footer{margin-top:0; margin-left:auto; padding-top:0; gap:10px;}
 
   .dupe-warn{
@@ -502,6 +507,7 @@
             <button id="tmdbKeyBtn">🔑 TMDB API key</button>
             <button id="omdbKeyBtn">🎬 OMDb key (IMDb ratings)</button>
             <button id="tagColorBtn">🎨 Tag colors</button>
+            <button id="backfillBtn">⟳ Backfill missing info</button>
             <button class="danger-item" id="clearAllBtn">✕ Clear all data</button>
           </div>
         </div>
@@ -665,7 +671,7 @@
   const STORAGE_KEY = 'movies-collection';
   // ---------- Firebase config (public identifiers — security lives in Firestore rules) ----------
   const FIREBASE_CONFIG = {
-    apiKey: "AIzaSyCCLIoRB8JffR1cpjU7nd8sk_YzifI9iWU",
+    apiKey: "AIzaSyCC•••••••••••••••••••••••••••••••",
     authDomain: "spine-c9175.firebaseapp.com",
     projectId: "spine-c9175",
     storageBucket: "spine-c9175.firebasestorage.app",
@@ -835,14 +841,18 @@
 
   // ---------- Rendering ----------
   function scoreRow(m){
-    const score = m.imdbRating || m.tmdbRating || null;
-    if(!score) return '';
-    const src = m.imdbRating ? 'IMDb' : 'TMDB';
-    const pct = Math.max(0, Math.min(100, score * 10));
-    return `<div class="score-row">
-      <span class="score-stars">★★★★★<span class="score-stars-fill" style="width:${pct}%">★★★★★</span></span>
-      <span class="score-num">${src} ${score}</span>
-    </div>`;
+    const rows = [];
+    if(m.imdbRating) rows.push({src:'IMDb', score:m.imdbRating});
+    if(m.tmdbRating) rows.push({src:'TMDB', score:m.tmdbRating});
+    if(!rows.length) return '';
+    return '<div class="score-block">' + rows.map(r=>{
+      const pct = Math.max(0, Math.min(100, r.score * 10));
+      return `<div class="score-row">
+        <span class="score-src">${r.src}</span>
+        <span class="score-stars">★★★★★<span class="score-stars-fill" style="width:${pct}%">★★★★★</span></span>
+        <span class="score-num">${r.score.toFixed(1)}</span>
+      </div>`;
+    }).join('') + '</div>';
   }
 
   function fmtRuntime(min){
@@ -1580,110 +1590,28 @@
     promptOmdbKey();
   });
 
-  function renderTagColorList(){
-    const tags = allTags();
-    if(!tags.length){
-      $('tagColorList').innerHTML = '<p style="color:var(--text-dim); font-size:13.5px;">No tags yet — add tags to some movies first.</p>';
-      return;
-    }
-    $('tagColorList').innerHTML = tags.map(t=>`
-      <div class="tag-color-row">
-        <span class="tag-color-name" style="${tagStyle(t)}">${escapeHtml(t)}</span>
-        <span class="color-dots">
-          <button class="color-dot none ${!tagColors[t] ? 'selected' : ''}" data-tag="${escapeHtml(t)}" data-color="" title="No color">✕</button>
-          ${TAG_PALETTE.map(c=>`<button class="color-dot ${tagColors[t] === c ? 'selected' : ''}" style="background:${c}" data-tag="${escapeHtml(t)}" data-color="${c}" title="${c}"></button>`).join('')}
-        </span>
-      </div>`).join('');
+  // ---------- Backfill: fetch missing runtime/ratings/posters for old entries ----------
+  function needsBackfill(m){
+    return !m.runtime || !m.imdbId || !m.tmdbRating
+      || (omdbKey() && !m.imdbRating)
+      || (!m.posterUrl && !m.posterData);
   }
-  $('tagColorBtn').addEventListener('click', ()=>{
-    $('menuDropdown').classList.remove('open');
-    renderTagColorList();
-    $('tagColorOverlay').classList.add('open');
-  });
-  $('closeTagColorBtn').addEventListener('click', ()=> $('tagColorOverlay').classList.remove('open'));
-  $('tagColorOverlay').addEventListener('click', e=>{ if(e.target === $('tagColorOverlay')) $('tagColorOverlay').classList.remove('open'); });
-  $('tagColorList').addEventListener('click', e=>{
-    const dot = e.target.closest('.color-dot'); if(!dot) return;
-    const tag = dot.dataset.tag;
-    if(dot.dataset.color) tagColors[tag] = dot.dataset.color;
-    else delete tagColors[tag];
-    saveTagColors();
-    renderTagColorList();
-    render(); // refresh card pills
-  });
 
-  $('authBtn').addEventListener('click', async ()=>{
-    $('menuDropdown').classList.remove('open');
-    if(!fbAuth) return;
-    if(fbUser){ fbAuth.signOut(); return; }
-    const provider = new firebase.auth.GoogleAuthProvider();
+  async function backfillOne(m){
+    let changed = false;
     try{
-      await fbAuth.signInWithPopup(provider);
-    }catch(e){
-      // popups can be blocked in installed/standalone mode — fall back to full-page redirect
-      try{ await fbAuth.signInWithRedirect(provider); }
-      catch(e2){ showToast('Sign-in failed', true); }
-    }
-  });
-
-  $('clearAllBtn').addEventListener('click', ()=>{
-    $('menuDropdown').classList.remove('open');
-    askConfirm('Clear everything?', 'This deletes your entire collection ' + (cloudOn() ? 'from all synced devices.' : 'from this device.') + ' This cannot be undone.', async ()=>{
-      if(cloudOn()){
-        const ids = movies.map(m=>m.id);
-        for(let i=0; i<ids.length; i+=450){
-          const batch = fbDb.batch();
-          ids.slice(i, i+450).forEach(id=> batch.delete(userCol().doc(id)));
-          batch.commit().catch(()=> setSyncState('error'));
-        }
-        localStorage.removeItem(STORAGE_KEY);
-        return;
-      }
-      movies = [];
-      render();
-      await saveMovies();
-    });
-  });
-
-  // ---------- Cross-device sync on focus ----------
-  document.addEventListener('visibilitychange', ()=>{
-    if(document.visibilityState === 'visible' && !$('modalOverlay').classList.contains('open')){
-      loadMovies();
-    }
-  });
-  window.addEventListener('focus', ()=>{
-    if(!$('modalOverlay').classList.contains('open')) loadMovies();
-  });
-
-  // ---------- Init ----------
-  updateAuthUI();
-  if(FIREBASE_CONFIG && window.firebase){
-    firebase.initializeApp(FIREBASE_CONFIG);
-    fbAuth = firebase.auth();
-    fbDb = firebase.firestore();
-    fbDb.enablePersistence({synchronizeTabs:true}).catch(()=>{}); // offline cache; fails harmlessly if unsupported
-    fbAuth.onAuthStateChanged(async user=>{
-      if(user && user.uid !== OWNER_UID){
-        fbAuth.signOut(); // fires this handler again with user = null
-        showToast('This app is private', true);
-        return;
-      }
-      fbUser = user;
-      updateAuthUI();
-      if(unsubMovies){ unsubMovies(); unsubMovies = null; }
-      if(user){
-        setSyncState('syncing');
-        await firstSyncMerge();
-        subscribeMovies();
-      } else {
-        setSyncState('ok');
-        loadMovies();
-      }
-    });
-  } else {
-    loadMovies();
-  }
-})();
-</script>
-</body>
-</html>
+      if(!m.runtime || !m.imdbId || !m.tmdbRating || !m.year || (!m.posterUrl && !m.posterData)){
+        const url = 'https://api.themoviedb.org/3/search/movie?api_key=' + encodeURIComponent(tmdbKey())
+          + '&query=' + encodeURIComponent(m.title)
+          + (m.year ? '&year=' + m.year : '') + '&include_adult=false';
+        const res = await fetch(url);
+        const data = await res.json();
+        const sr = (data.results || [])[0];
+        if(sr){
+          if(!m.tmdbRating && typeof sr.vote_average === 'number'){ m.tmdbRating = Math.round(sr.vote_average * 10) / 10; changed = true; }
+          if(!m.posterUrl && !m.posterData && sr.poster_path){ m.posterUrl = 'https://image.tmdb.org/t/p/w342' + sr.poster_path; changed = true; }
+          if(!m.year && sr.release_date){ m.year = parseInt(sr.release_date.slice(0,4)); changed = true; }
+          if(!m.runtime || !m.imdbId){
+            const dres = await fetch('https://api.themoviedb.org/3/movie/' + sr.id + '?api_key=' + encodeURIComponent(tmdbKey()));
+            const d = await dres.json();
+            if(!m.runtime && d.runtime
