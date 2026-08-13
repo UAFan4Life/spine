@@ -701,7 +701,7 @@
             </select>
           </div>
           <div class="form-group">
-            <label for="hdrSelect">4K Type</label>
+            <label for="hdrSelect">HDR Type</label>
             <select class="field-select" id="hdrSelect">
               <option value="">Not researched</option>
               <option value="No 4K Available">No 4K Available</option>
@@ -715,8 +715,8 @@
 
         <div class="form-row">
           <div class="form-group">
-            <label for="aspectRatioInput">Aspect Ratio</label>
-            <input type="text" id="aspectRatioInput" placeholder="e.g. 2.35:1">
+            <label for="audioFormatSelect">Audio Format</label>
+            <select class="field-select" id="audioFormatSelect"></select>
           </div>
           <div class="form-group">
             <label for="uhdYearInput">4K Release Year</label>
@@ -725,11 +725,8 @@
         </div>
 
         <div class="form-group">
-          <label for="audioFormatsInput">Audio Formats</label>
-          <div class="pill-input-wrap" id="audioFormatsWrap">
-            <input type="text" id="audioFormatsInput" placeholder="e.g. Dolby Atmos, DTS:X…" list="audioSuggestions">
-          </div>
-          <datalist id="audioSuggestions"></datalist>
+          <label for="aspectRatioSelect">Aspect Ratio</label>
+          <select class="field-select" id="aspectRatioSelect"></select>
         </div>
 
         <div class="form-group">
@@ -846,7 +843,14 @@
   let formRuntime = null, formImdbRating = null, formTmdbRating = null, formImdbId = '';
   let formContentRating = '';
   const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  let formAudioFormats = [];
+  const AUDIO_FORMAT_OPTIONS = ['Dolby Atmos','Dolby TrueHD','DTS:X','DTS-HD MA','DTS','Dolby Digital Plus','Dolby Digital','PCM'];
+  const ASPECT_RATIO_OPTIONS = ['1.33:1','1.66:1','1.78:1','1.85:1','2.00:1','2.20:1','2.35:1','2.39:1','2.40:1','2.76:1'];
+  function buildPresetSelect(selectEl, options, current){
+    const opts = options.slice();
+    if(current && !opts.includes(current)) opts.push(current); // preserve a legacy/custom saved value even if it's not in the preset list
+    selectEl.innerHTML = '<option value="">—</option>' + opts.map(o=>`<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('');
+    selectEl.value = current || '';
+  }
   let viewMode = localStorage.getItem('view-mode') || 'grid';
   let activeCollection = '';
   let pendingConfirm = null;
@@ -1018,11 +1022,6 @@
   function allCollections(){
     const s = new Set();
     movies.forEach(m => (m.collections||[]).forEach(c => s.add(c)));
-    return [...s].sort();
-  }
-  function allAudioFormats(){
-    const s = new Set();
-    movies.forEach(m => (m.audioFormats||[]).forEach(a => s.add(a)));
     return [...s].sort();
   }
   function totalSpent(){
@@ -1288,7 +1287,6 @@
   function updateSuggestionLists(){
     $('tagSuggestions').innerHTML = allTags().map(t=>`<option value="${escapeHtml(t)}">`).join('');
     $('collectionSuggestions').innerHTML = allCollections().map(c=>`<option value="${escapeHtml(c)}">`).join('');
-    $('audioSuggestions').innerHTML = allAudioFormats().map(a=>`<option value="${escapeHtml(a)}">`).join('');
   }
 
   // ---------- Filters / search / sort ----------
@@ -1630,7 +1628,6 @@
   }
   setupPillInput('tagsInput', formTags, 'tagsWrap');
   setupPillInput('collectionsInput', formCollections, 'collectionsWrap');
-  setupPillInput('audioFormatsInput', formAudioFormats, 'audioFormatsWrap');
 
   // ---------- Poster picker ----------
   const POSTER_MAX_W = 400;
@@ -1689,10 +1686,10 @@
     extrasSeq++; // cancel any in-flight extras fetch from a previous form
     checkDuplicate('');
     updatePosterPreview();
-    formAudioFormats.length = 0; // mutate in place — pill input holds a reference to this array
+    buildPresetSelect($('audioFormatSelect'), AUDIO_FORMAT_OPTIONS, '');
+    buildPresetSelect($('aspectRatioSelect'), ASPECT_RATIO_OPTIONS, '');
     $('diSelect').value = '';
     $('hdrSelect').value = '';
-    $('aspectRatioInput').value = '';
     $('uhdYearInput').value = '';
     $('upgradePriceInput').value = '';
     $('acquiredDateInput').value = new Date().toISOString().slice(0,10);
@@ -1703,7 +1700,6 @@
     buildStarPicker();
     buildPills('tagsWrap', formTags, 'tagsInput');
     buildPills('collectionsWrap', formCollections, 'collectionsInput');
-    buildPills('audioFormatsWrap', formAudioFormats, 'audioFormatsInput');
     $('deleteBtn').style.display = 'none';
     $('modalTitle').textContent = 'Add Movie';
   }
@@ -1734,12 +1730,11 @@
     updatePosterPreview();
     $('diSelect').value = m.digitalIntermediate || '';
     $('hdrSelect').value = m.hdrType || '';
-    $('aspectRatioInput').value = m.aspectRatio || '';
+    buildPresetSelect($('audioFormatSelect'), AUDIO_FORMAT_OPTIONS, (m.audioFormats||[])[0] || '');
+    buildPresetSelect($('aspectRatioSelect'), ASPECT_RATIO_OPTIONS, m.aspectRatio || '');
     $('uhdYearInput').value = m.uhdReleaseYear || '';
     $('upgradePriceInput').value = m.upgradePrice || '';
     $('acquiredDateInput').value = m.acquiredDate || '';
-    formAudioFormats.length = 0;
-    (m.audioFormats||[]).forEach(a=> formAudioFormats.push(a));
     $('wishlistToggle').checked = !!m.wishlist;
     $('wishlistLabel').textContent = m.wishlist ? 'On my wishlist' : 'I own this';
     $('notesInput').value = m.notes || '';
@@ -1754,7 +1749,6 @@
     buildStarPicker();
     buildPills('tagsWrap', formTags, 'tagsInput');
     buildPills('collectionsWrap', formCollections, 'collectionsInput');
-    buildPills('audioFormatsWrap', formAudioFormats, 'audioFormatsInput');
     $('deleteBtn').style.display = 'block';
     $('modalOverlay').classList.add('open');
   }
@@ -1790,8 +1784,8 @@
       contentRating: formContentRating,
       digitalIntermediate: $('diSelect').value,
       hdrType: $('hdrSelect').value,
-      audioFormats: formAudioFormats.slice(),
-      aspectRatio: $('aspectRatioInput').value.trim(),
+      audioFormats: $('audioFormatSelect').value ? [$('audioFormatSelect').value] : [],
+      aspectRatio: $('aspectRatioSelect').value,
       uhdReleaseYear: $('uhdYearInput').value ? parseInt($('uhdYearInput').value) : null,
       upgradePrice: $('upgradePriceInput').value ? parseFloat($('upgradePriceInput').value) : null,
       acquiredDate: $('acquiredDateInput').value,
