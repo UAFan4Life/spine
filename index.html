@@ -382,10 +382,11 @@
   }
   .poster-pick-btn:hover{color:var(--text); border-color:var(--accent);}
   .poster-remove-btn{color:var(--danger); border-color:var(--danger);}
-  input[type=text],input[type=number],input[type=url],textarea,.field-select{
+  input[type=text],input[type=number],input[type=url],input[type=date],textarea,.field-select{
     width:100%; background:var(--surface-2); border:1px solid var(--border);
     color:var(--text); border-radius:var(--radius-sm); padding:10px 12px; font-size:14px;
   }
+  input[type=date]{color-scheme:dark;}
   textarea{resize:vertical; min-height:60px;}
   input:focus,textarea:focus,.field-select:focus{border-color:var(--accent);}
 
@@ -489,6 +490,42 @@
   .native-swatch::-webkit-color-swatch{border:none; border-radius:50%;}
   .native-swatch::-moz-color-swatch{border:none; border-radius:50%;}
 
+  /* ---------- Stats dashboard ---------- */
+  .stat-hero{
+    text-align:center; padding:18px 12px; margin-bottom:4px;
+    background:var(--surface-2); border-radius:var(--radius-sm); border:1px solid var(--border);
+  }
+  .stat-hero .hero-num{font-family:var(--font-display); font-size:34px; color:var(--accent-light); letter-spacing:.5px;}
+  .stat-hero .hero-label{font-size:12px; color:var(--text-dim); margin-top:2px;}
+  .donut-row{display:flex; align-items:center; gap:20px; margin:4px 0;}
+  .donut{width:120px; height:120px; border-radius:50%; flex:0 0 auto; display:flex; align-items:center; justify-content:center;}
+  .donut-hole{
+    width:60px; height:60px; border-radius:50%; background:var(--surface);
+    display:flex; align-items:center; justify-content:center;
+    font-family:var(--font-mono); font-size:11px; color:var(--text-dim); text-align:center; line-height:1.3;
+  }
+  .donut-legend{display:flex; flex-direction:column; gap:6px; flex:1;}
+  .donut-legend-row{display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-dim);}
+  .donut-swatch{width:10px; height:10px; border-radius:3px; flex:0 0 auto;}
+  .avg-price-row{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:8px 0; border-bottom:1px solid var(--border-soft); font-size:13px;
+  }
+  .avg-price-row:last-child{border-bottom:none;}
+  .avg-price-row .avg-num{font-family:var(--font-mono); color:var(--accent-light); font-weight:600;}
+  .bar-list{display:flex; flex-direction:column; gap:8px;}
+  .bar-row{display:flex; align-items:center; gap:10px;}
+  .bar-row .bar-label{font-size:12px; color:var(--text-dim); width:96px; flex:0 0 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .bar-row .bar-track{flex:1; background:var(--surface-2); border-radius:4px; height:16px; overflow:hidden;}
+  .bar-row .bar-fill{height:100%; border-radius:4px; background:var(--accent);}
+  .bar-row .bar-num{font-family:var(--font-mono); font-size:11.5px; color:var(--text-dim); width:22px; text-align:right; flex:0 0 auto;}
+  .month-strip{display:flex; gap:10px; overflow-x:auto; padding:4px 2px 6px; align-items:flex-end; height:130px;}
+  .month-bar-wrap{display:flex; flex-direction:column; align-items:center; gap:4px; flex:0 0 auto; width:40px; height:100%; justify-content:flex-end;}
+  .month-bar{width:22px; background:var(--accent); border-radius:3px 3px 0 0; min-height:2px;}
+  .month-bar-amt{font-family:var(--font-mono); font-size:9.5px; color:var(--text-faint); white-space:nowrap;}
+  .month-bar-label{font-family:var(--font-mono); font-size:9.5px; color:var(--text-dim); white-space:nowrap;}
+  .stats-empty{color:var(--text-dim); font-size:13px; margin:0 0 8px;}
+
   .confirm-overlay{
     position:fixed; inset:0; background:rgba(10,10,14,0.8); z-index:70;
     display:none; align-items:center; justify-content:center; padding:20px;
@@ -525,6 +562,7 @@
             <button id="tmdbKeyBtn">🔑 TMDB API key</button>
             <button id="omdbKeyBtn">🎬 OMDb key (IMDb ratings)</button>
             <button id="colorsBtn">🎨 Colors</button>
+            <button id="statsBtn">📊 Stats</button>
             <button id="backfillBtn">⟳ Backfill missing info</button>
             <button class="danger-item" id="clearAllBtn">✕ Clear all data</button>
           </div>
@@ -605,6 +643,11 @@
               <button type="button" class="poster-remove-btn" id="posterRemoveBtn" style="display:none;" aria-label="Remove image">✕</button>
             </div>
           </div>
+        </div>
+
+        <div class="form-group">
+          <label for="acquiredDateInput">Date Acquired</label>
+          <input type="date" id="acquiredDateInput">
         </div>
 
         <div class="toggle-row">
@@ -715,6 +758,17 @@
     </div>
   </div>
 
+  <!-- Stats -->
+  <div class="modal-overlay" id="statsOverlay">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <div class="modal-title">Stats</div>
+        <button class="icon-btn" id="closeStatsBtn" aria-label="Close">✕</button>
+      </div>
+      <div id="statsContent"></div>
+    </div>
+  </div>
+
   <!-- Confirm dialog -->
   <div class="confirm-overlay" id="confirmOverlay">
     <div class="confirm-box">
@@ -747,6 +801,7 @@
   const cloudOn = () => !!fbUser && !!fbDb;
   const FORMAT_TYPES = ['4K UHD','Blu-ray','DVD','Digital'];
   const FORMAT_CLASS = {'4K UHD':'fmt-4k','Blu-ray':'fmt-bluray','DVD':'fmt-dvd','Digital':'fmt-digital'};
+  const FORMAT_COLOR_VAR = {'4K UHD':'var(--c-4k)','Blu-ray':'var(--c-bluray)','DVD':'var(--c-dvd)','Digital':'var(--c-digital)'};
 
   let movies = [];
   let filterMode = 'all';
@@ -1023,6 +1078,45 @@
   }
   function priceOf(m){
     return (m.formats||[]).reduce((s,f)=> s + (parseFloat(f.price)||0), 0);
+  }
+
+  // ---------- Stats dashboard aggregates ----------
+  function upgradeTotal(){
+    const targets = movies.filter(m=> m.upgradePrice && !(m.formats||[]).some(f=>f.type==='4K UHD'));
+    return { total: targets.reduce((s,m)=> s + m.upgradePrice, 0), count: targets.length };
+  }
+  function formatAverages(){
+    const sums = {}, counts = {};
+    FORMAT_TYPES.forEach(t=>{ sums[t] = 0; counts[t] = 0; });
+    movies.filter(m=>!m.wishlist).forEach(m=>{
+      (m.formats||[]).forEach(f=>{
+        if(sums.hasOwnProperty(f.type)){ sums[f.type] += (parseFloat(f.price)||0); counts[f.type]++; }
+      });
+    });
+    return FORMAT_TYPES.map(t=>({ type:t, avg: counts[t] ? sums[t]/counts[t] : null, count: counts[t] }));
+  }
+  function topCollections(n){
+    const counts = {};
+    movies.forEach(m=> (m.collections||[]).forEach(c=> counts[c] = (counts[c]||0) + 1));
+    return Object.entries(counts).sort((a,b)=> b[1]-a[1]).slice(0, n||10);
+  }
+  function monthBucket(m){
+    const d = m.acquiredDate || (m.dateAdded ? new Date(m.dateAdded).toISOString().slice(0,7) : '');
+    return d ? d.slice(0,7) : '';
+  }
+  function spendByMonth(){
+    const sums = {};
+    movies.filter(m=>!m.wishlist).forEach(m=>{
+      const bucket = monthBucket(m);
+      if(!bucket) return;
+      sums[bucket] = (sums[bucket]||0) + priceOf(m);
+    });
+    return Object.entries(sums).sort((a,b)=> a[0].localeCompare(b[0]));
+  }
+  function monthLabel(ym){
+    const [y,mo] = ym.split('-');
+    const names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return names[parseInt(mo,10)-1] + " '" + y.slice(2);
   }
 
   function renderMovies(){
@@ -1523,6 +1617,7 @@
     $('aspectRatioInput').value = '';
     $('uhdYearInput').value = '';
     $('upgradePriceInput').value = '';
+    $('acquiredDateInput').value = new Date().toISOString().slice(0,10);
     $('wishlistToggle').checked = false;
     $('wishlistLabel').textContent = 'I own this';
     $('notesInput').value = '';
@@ -1562,6 +1657,7 @@
     $('aspectRatioInput').value = m.aspectRatio || '';
     $('uhdYearInput').value = m.uhdReleaseYear || '';
     $('upgradePriceInput').value = m.upgradePrice || '';
+    $('acquiredDateInput').value = m.acquiredDate || '';
     formAudioFormats.length = 0;
     (m.audioFormats||[]).forEach(a=> formAudioFormats.push(a));
     $('wishlistToggle').checked = !!m.wishlist;
@@ -1616,6 +1712,7 @@
       aspectRatio: $('aspectRatioInput').value.trim(),
       uhdReleaseYear: $('uhdYearInput').value ? parseInt($('uhdYearInput').value) : null,
       upgradePrice: $('upgradePriceInput').value ? parseFloat($('upgradePriceInput').value) : null,
+      acquiredDate: $('acquiredDateInput').value,
       wishlist: $('wishlistToggle').checked,
       formats,
       rating: formRating,
@@ -1862,6 +1959,91 @@
     const swatch = e.target.closest('.native-swatch'); if(!swatch) return;
     setGroupColor(swatch.dataset.group, swatch.dataset.item, swatch.value);
   });
+
+  function renderStatsDashboard(){
+    const owned = movies.filter(m=>!m.wishlist);
+    let html = '';
+
+    const up = upgradeTotal();
+    html += `<div class="stat-hero">
+      <div class="hero-num">$${up.total.toFixed(2)}</div>
+      <div class="hero-label">to complete your 4K upgrades${up.count ? ' — ' + up.count + ' ' + (up.count===1?'movie':'movies') : ''}</div>
+    </div>`;
+
+    html += '<div class="color-section-title">Format Mix</div>';
+    const fmtCounts = FORMAT_TYPES.map(t=>({type:t, count: owned.filter(m=>(m.formats||[]).some(f=>f.type===t)).length}));
+    const fmtTotal = fmtCounts.reduce((s,f)=>s+f.count,0);
+    if(!fmtTotal){
+      html += '<p class="stats-empty">No owned formats yet.</p>';
+    } else {
+      let acc = 0;
+      const present = fmtCounts.filter(f=>f.count>0);
+      const stops = present.map(f=>{
+        const pct = f.count/fmtTotal*100;
+        const seg = `${FORMAT_COLOR_VAR[f.type]} ${acc}% ${acc+pct}%`;
+        acc += pct;
+        return seg;
+      }).join(', ');
+      html += `<div class="donut-row">
+        <div class="donut" style="background:conic-gradient(${stops})"><div class="donut-hole">${fmtTotal}<br>owned</div></div>
+        <div class="donut-legend">${present.map(f=>`
+          <div class="donut-legend-row"><span class="donut-swatch" style="background:${FORMAT_COLOR_VAR[f.type]}"></span>${escapeHtml(f.type)} · ${f.count} (${Math.round(f.count/fmtTotal*100)}%)</div>
+        `).join('')}</div>
+      </div>`;
+    }
+
+    html += '<div class="color-section-title">Average Price Paid</div>';
+    const avgs = formatAverages().filter(a=>a.count);
+    if(!avgs.length){
+      html += '<p class="stats-empty">No prices recorded yet.</p>';
+    } else {
+      html += avgs.map(a=>`
+        <div class="avg-price-row"><span>${escapeHtml(a.type)}</span><span class="avg-num">$${a.avg.toFixed(2)}</span></div>
+      `).join('');
+    }
+
+    html += '<div class="color-section-title">Top Collections</div>';
+    const cols = topCollections(10);
+    if(!cols.length){
+      html += '<p class="stats-empty">No collections yet.</p>';
+    } else {
+      const maxCount = cols[0][1];
+      html += '<div class="bar-list">' + cols.map(([name,count])=>{
+        const pct = Math.round(count/maxCount*100);
+        const color = collectionColors[name] || 'var(--border)';
+        return `<div class="bar-row">
+          <span class="bar-label" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+          <span class="bar-track"><span class="bar-fill" style="width:${pct}%; background:${color}"></span></span>
+          <span class="bar-num">${count}</span>
+        </div>`;
+      }).join('') + '</div>';
+    }
+
+    html += '<div class="color-section-title">Spend by Month</div>';
+    const months = spendByMonth();
+    if(!months.length){
+      html += '<p class="stats-empty">No spending recorded yet.</p>';
+    } else {
+      const maxAmt = Math.max(...months.map(([,amt])=>amt), 1);
+      html += '<div class="month-strip">' + months.map(([ym,amt])=>{
+        const h = Math.max(2, Math.round(amt/maxAmt*90));
+        return `<div class="month-bar-wrap">
+          <span class="month-bar-amt">$${Math.round(amt)}</span>
+          <span class="month-bar" style="height:${h}px"></span>
+          <span class="month-bar-label">${monthLabel(ym)}</span>
+        </div>`;
+      }).join('') + '</div>';
+    }
+
+    $('statsContent').innerHTML = html;
+  }
+  $('statsBtn').addEventListener('click', ()=>{
+    $('menuDropdown').classList.remove('open');
+    renderStatsDashboard();
+    $('statsOverlay').classList.add('open');
+  });
+  $('closeStatsBtn').addEventListener('click', ()=> $('statsOverlay').classList.remove('open'));
+  $('statsOverlay').addEventListener('click', e=>{ if(e.target === $('statsOverlay')) $('statsOverlay').classList.remove('open'); });
 
   $('authBtn').addEventListener('click', async ()=>{
     $('menuDropdown').classList.remove('open');
