@@ -234,10 +234,7 @@
   .badge.fmt-bluray{background:var(--c-bluray);}
   .badge.fmt-dvd{background:var(--c-dvd); color:#151520;}
   .badge.fmt-digital{background:var(--c-digital);}
-  .badge.quality{
-    background:none; border:1px solid currentColor;
-    font-weight:700;
-  }
+  .badge.quality{font-weight:700;}
   .upgrade-chip{
     font-family:var(--font-mono); font-size:11px; font-weight:600; color:var(--wishlist);
     margin-left:6px;
@@ -425,7 +422,7 @@
     color:var(--text); font-size:12px; padding:4px 8px; border-radius:6px;
     display:flex; align-items:center; gap:6px;
   }
-  .pill button{background:none; border:none; color:var(--text-faint); font-size:13px; line-height:1;}
+  .pill button{background:none; border:none; color:currentColor; opacity:.65; font-size:13px; line-height:1;}
   .pill-input-wrap input{
     border:none; background:none; flex:1; min-width:80px; padding:4px; font-size:13px;
   }
@@ -484,6 +481,13 @@
   }
   .color-dot.none{background:var(--surface-2); border-color:var(--border);}
   .color-dot.selected{border-color:#fff;}
+  .native-swatch{
+    width:22px; height:22px; padding:0; border:2px solid var(--border); border-radius:50%;
+    background:none; cursor:pointer; overflow:hidden;
+  }
+  .native-swatch::-webkit-color-swatch-wrapper{padding:0;}
+  .native-swatch::-webkit-color-swatch{border:none; border-radius:50%;}
+  .native-swatch::-moz-color-swatch{border:none; border-radius:50%;}
 
   .confirm-overlay{
     position:fixed; inset:0; background:rgba(10,10,14,0.8); z-index:70;
@@ -764,12 +768,18 @@
   let pendingConfirm = null;
 
   // ---------- Tag colors ----------
-  const TAG_PALETTE = ['#d9635a','#e08b3b','#d4a537','#5fbf6f','#2fa8a1','#3b66e0','#9b59d0','#e0637a'];
+  function contrastText(hex){
+    const h = (hex||'').replace('#','');
+    if(h.length !== 6) return '#ffffff';
+    const r = parseInt(h.substr(0,2),16), g = parseInt(h.substr(2,2),16), b = parseInt(h.substr(4,2),16);
+    const yiq = (r*299 + g*587 + b*114) / 1000;
+    return yiq >= 140 ? '#14141a' : '#ffffff';
+  }
   let tagColors = {};
   try{ tagColors = JSON.parse(localStorage.getItem('tag-colors') || '{}') || {}; }catch(e){}
   function tagStyle(t){
     const c = tagColors[t];
-    return c ? `color:${c}; background:${c}26;` : '';
+    return c ? `background:${c}; color:${contrastText(c)};` : '';
   }
   function saveTagColors(){
     localStorage.setItem('tag-colors', JSON.stringify(tagColors));
@@ -779,7 +789,7 @@
   try{ collectionColors = JSON.parse(localStorage.getItem('collection-colors') || '{}') || {}; }catch(e){}
   function collectionStyle(c){
     const col = collectionColors[c];
-    return col ? `color:${col}; background:${col}26;` : '';
+    return col ? `background:${col}; color:${contrastText(col)};` : '';
   }
   function saveCollectionColors(){
     localStorage.setItem('collection-colors', JSON.stringify(collectionColors));
@@ -1061,9 +1071,9 @@
   function cardHtml(m){
     const formats = m.formats || [];
     let badges = formats.map(f => `<span class="badge ${FORMAT_CLASS[f.type]}">${escapeHtml(f.type)}</span>`).join('');
-    if(m.digitalIntermediate === '4K Native') badges += `<span class="badge quality" style="color:${badgeColor('4K Native')}">4K NATIVE</span>`;
-    if((m.audioFormats||[]).some(a=>/atmos/i.test(a))) badges += `<span class="badge quality" style="color:${badgeColor('Atmos')}">ATMOS</span>`;
-    if(m.hdrType === 'Dolby Vision') badges += `<span class="badge quality" style="color:${badgeColor('Dolby Vision')}">DOLBY VISION</span>`;
+    if(m.digitalIntermediate === '4K Native'){ const c=badgeColor('4K Native'); badges += `<span class="badge quality" style="background:${c}; color:${contrastText(c)}">4K NATIVE</span>`; }
+    if((m.audioFormats||[]).some(a=>/atmos/i.test(a))){ const c=badgeColor('Atmos'); badges += `<span class="badge quality" style="background:${c}; color:${contrastText(c)}">ATMOS</span>`; }
+    if(m.hdrType === 'Dolby Vision'){ const c=badgeColor('Dolby Vision'); badges += `<span class="badge quality" style="background:${c}; color:${contrastText(c)}">DOLBY VISION</span>`; }
     const stars = [1,2,3,4,5].map(i => `<span class="star-static ${i<=(m.rating||0)?'filled':''}">★</span>`).join('');
     const price = priceOf(m);
     const showUpgrade = m.upgradePrice && !formats.some(f=>f.type==='4K UHD');
@@ -1416,14 +1426,14 @@
       pill.className = 'pill';
       pill.innerHTML = `${escapeHtml(val)} <button type="button" aria-label="Remove">✕</button>`;
       if(wrapId === 'tagsWrap' && tagColors[val]){
-        pill.style.color = tagColors[val];
-        pill.style.background = tagColors[val] + '26';
-        pill.style.borderColor = tagColors[val] + '55';
+        pill.style.background = tagColors[val];
+        pill.style.color = contrastText(tagColors[val]);
+        pill.style.borderColor = tagColors[val];
       }
       if(wrapId === 'collectionsWrap' && collectionColors[val]){
-        pill.style.color = collectionColors[val];
-        pill.style.background = collectionColors[val] + '26';
-        pill.style.borderColor = collectionColors[val] + '55';
+        pill.style.background = collectionColors[val];
+        pill.style.color = contrastText(collectionColors[val]);
+        pill.style.borderColor = collectionColors[val];
       }
       pill.querySelector('button').addEventListener('click', ()=>{
         const idx = arr.indexOf(val);
@@ -1797,17 +1807,19 @@
     backfillAll();
   });
 
-  function colorRowsHtml(group, items, colorOf, emptyMsg){
+  function colorRowsHtml(group, items, colorOf, emptyMsg, hasOverride){
     if(!items.length) return `<p style="color:var(--text-dim); font-size:13px; margin:0 0 8px;">${emptyMsg}</p>`;
+    hasOverride = hasOverride || (item=>!!colorOf(item));
     return items.map(item=>{
       const current = colorOf(item);
-      const styleAttr = current ? `color:${current}; background:${current}26;` : '';
+      const swatchColor = current || '#8481a0';
+      const styleAttr = current ? `background:${current}; color:${contrastText(current)};` : '';
       return `
       <div class="tag-color-row">
         <span class="tag-color-name" style="${styleAttr}">${escapeHtml(item)}</span>
         <span class="color-dots">
-          <button class="color-dot none ${!current || (group==='badge' && !badgeColors[item]) ? 'selected' : ''}" data-group="${group}" data-item="${escapeHtml(item)}" data-color="" title="${group==='badge'?'Default':'No color'}">✕</button>
-          ${TAG_PALETTE.map(c=>`<button class="color-dot ${current === c ? 'selected' : ''}" style="background:${c}" data-group="${group}" data-item="${escapeHtml(item)}" data-color="${c}" title="${c}"></button>`).join('')}
+          <button class="color-dot none ${!hasOverride(item) ? 'selected' : ''}" data-group="${group}" data-item="${escapeHtml(item)}" title="${group==='badge'?'Default':'No color'}">✕</button>
+          <input type="color" class="native-swatch" value="${swatchColor}" data-group="${group}" data-item="${escapeHtml(item)}">
         </span>
       </div>`;
     }).join('');
@@ -1819,7 +1831,7 @@
       '<div class="color-section-title">Collections</div>' +
       colorRowsHtml('coll', allCollections(), c=>collectionColors[c], 'No collections yet — add a collection to some movies first.') +
       '<div class="color-section-title">Badges</div>' +
-      colorRowsHtml('badge', QUALITY_BADGES, b=>badgeColor(b), 'No badges.');
+      colorRowsHtml('badge', QUALITY_BADGES, b=>badgeColor(b), 'No badges.', b=>!!badgeColors[b]);
   }
   $('colorsBtn').addEventListener('click', ()=>{
     $('menuDropdown').classList.remove('open');
@@ -1828,9 +1840,7 @@
   });
   $('closeColorsBtn').addEventListener('click', ()=> $('colorsOverlay').classList.remove('open'));
   $('colorsOverlay').addEventListener('click', e=>{ if(e.target === $('colorsOverlay')) $('colorsOverlay').classList.remove('open'); });
-  $('colorsList').addEventListener('click', e=>{
-    const dot = e.target.closest('.color-dot'); if(!dot) return;
-    const { group, item, color } = dot.dataset;
+  function setGroupColor(group, item, color){
     if(group === 'tag'){
       if(color) tagColors[item] = color; else delete tagColors[item];
       saveTagColors();
@@ -1843,6 +1853,14 @@
     }
     renderColorsManager();
     render(); // refresh cards/chips/pills
+  }
+  $('colorsList').addEventListener('click', e=>{
+    const dot = e.target.closest('.color-dot.none'); if(!dot) return;
+    setGroupColor(dot.dataset.group, dot.dataset.item, '');
+  });
+  $('colorsList').addEventListener('change', e=>{
+    const swatch = e.target.closest('.native-swatch'); if(!swatch) return;
+    setGroupColor(swatch.dataset.group, swatch.dataset.item, swatch.value);
   });
 
   $('authBtn').addEventListener('click', async ()=>{
