@@ -144,7 +144,7 @@
     color:var(--text-dim); padding:6px 12px; border-radius:999px;
     font-size:12.5px; font-weight:600;
   }
-  .chip.active{border-color:currentColor;}
+  .chip.active{border-color:currentColor; color:var(--accent-light); background:rgba(212,165,55,0.14);}
   .chip.fmt-4k.active{color:var(--c-4k); background:rgba(47,168,161,0.12);}
   .chip.fmt-bluray.active{color:var(--c-bluray); background:rgba(59,102,224,0.12);}
   .chip.fmt-dvd.active{color:var(--c-dvd); background:rgba(132,129,160,0.12);}
@@ -590,6 +590,7 @@
         <button class="chip fmt-dvd" data-fmt="DVD">DVD</button>
         <button class="chip fmt-digital" data-fmt="Digital">Digital</button>
       </div>
+      <div class="chip-scroll" id="ratingChips"></div>
       <select class="sort-select" id="sortSelect">
         <option value="recent">Recently added</option>
         <option value="title">Title A–Z</option>
@@ -641,12 +642,31 @@
             <input type="number" id="yearInput" placeholder="2017" min="1890" max="2100">
           </div>
           <div class="form-group">
-            <label>Box art</label>
-            <div class="poster-picker">
-              <img id="posterPreview" alt="" style="display:none;">
-              <button type="button" class="poster-pick-btn" id="posterPickBtn">＋ Add image</button>
-              <button type="button" class="poster-remove-btn" id="posterRemoveBtn" style="display:none;" aria-label="Remove image">✕</button>
-            </div>
+            <label for="releaseMonthSelect">Month</label>
+            <select class="field-select" id="releaseMonthSelect">
+              <option value="">—</option>
+              <option value="1">Jan</option>
+              <option value="2">Feb</option>
+              <option value="3">Mar</option>
+              <option value="4">Apr</option>
+              <option value="5">May</option>
+              <option value="6">Jun</option>
+              <option value="7">Jul</option>
+              <option value="8">Aug</option>
+              <option value="9">Sep</option>
+              <option value="10">Oct</option>
+              <option value="11">Nov</option>
+              <option value="12">Dec</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Box art</label>
+          <div class="poster-picker">
+            <img id="posterPreview" alt="" style="display:none;">
+            <button type="button" class="poster-pick-btn" id="posterPickBtn">＋ Add image</button>
+            <button type="button" class="poster-remove-btn" id="posterRemoveBtn" style="display:none;" aria-label="Remove image">✕</button>
           </div>
         </div>
 
@@ -811,6 +831,8 @@
   let movies = [];
   let filterMode = 'all';
   let activeFormatFilters = new Set();
+  let activeRatingFilters = new Set();
+  const RATING_ORDER = ['G','PG','PG-13','R','NC-17','NR','Not Rated','Unrated'];
   let searchQuery = '';
   let sortBy = 'recent';
   let editingId = null;
@@ -822,7 +844,7 @@
   let formPosterUrl = '';
   let pendingUpc = '';
   let formRuntime = null, formImdbRating = null, formTmdbRating = null, formImdbId = '';
-  let formReleaseMonth = null, formContentRating = '';
+  let formContentRating = '';
   const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   let formAudioFormats = [];
   let viewMode = localStorage.getItem('view-mode') || 'grid';
@@ -1062,6 +1084,9 @@
     if(activeFormatFilters.size){
       list = list.filter(m => (m.formats||[]).some(f => activeFormatFilters.has(f.type)));
     }
+    if(activeRatingFilters.size){
+      list = list.filter(m => activeRatingFilters.has(m.contentRating));
+    }
     if(activeCollection){
       list = list.filter(m => (m.collections||[]).includes(activeCollection));
     }
@@ -1226,9 +1251,36 @@
     renderMovies();
   });
 
+  function allContentRatings(){
+    const s = new Set();
+    movies.forEach(m=>{ if(m.contentRating) s.add(m.contentRating); });
+    return [...s].sort((a,b)=>{
+      const ia = RATING_ORDER.indexOf(a), ib = RATING_ORDER.indexOf(b);
+      if(ia===-1 && ib===-1) return a.localeCompare(b);
+      if(ia===-1) return 1;
+      if(ib===-1) return -1;
+      return ia-ib;
+    });
+  }
+  function renderRatingChips(){
+    const ratings = allContentRatings();
+    [...activeRatingFilters].forEach(r=>{ if(!ratings.includes(r)) activeRatingFilters.delete(r); });
+    $('ratingChips').innerHTML = ratings.map(r=>
+      `<button class="chip ${activeRatingFilters.has(r) ? 'active' : ''}" data-rating="${escapeHtml(r)}">${escapeHtml(r)}</button>`
+    ).join('');
+  }
+  $('ratingChips').addEventListener('click', e=>{
+    const btn = e.target.closest('button'); if(!btn) return;
+    const r = btn.dataset.rating;
+    if(activeRatingFilters.has(r)){ activeRatingFilters.delete(r); btn.classList.remove('active'); }
+    else { activeRatingFilters.add(r); btn.classList.add('active'); }
+    renderMovies();
+  });
+
   function render(){
     renderStats();
     renderCollectionChips();
+    renderRatingChips();
     renderMovies();
     updateSuggestionLists();
   }
@@ -1385,7 +1437,7 @@
           $('titleInput').value = r.title;
           checkDuplicate(r.title);
           fetchMovieExtras(r.id, r.vote);
-          formReleaseMonth = r.month || null;
+          $('releaseMonthSelect').value = r.month || '';
           if(r.year) $('yearInput').value = r.year;
           if(r.poster){ formPosterUrl = r.poster; updatePosterPreview(); }
           let added = false;
@@ -1633,7 +1685,7 @@
     formPosterUrl = '';
     pendingUpc = '';
     formRuntime = null; formImdbRating = null; formTmdbRating = null; formImdbId = '';
-    formReleaseMonth = null; formContentRating = '';
+    $('releaseMonthSelect').value = ''; formContentRating = '';
     extrasSeq++; // cancel any in-flight extras fetch from a previous form
     checkDuplicate('');
     updatePosterPreview();
@@ -1676,7 +1728,7 @@
     formImdbRating = m.imdbRating || null;
     formTmdbRating = m.tmdbRating || null;
     formImdbId = m.imdbId || '';
-    formReleaseMonth = m.releaseMonth || null;
+    $('releaseMonthSelect').value = m.releaseMonth || '';
     formContentRating = m.contentRating || '';
     checkDuplicate(m.title);
     updatePosterPreview();
@@ -1734,7 +1786,7 @@
       imdbRating: formImdbRating,
       tmdbRating: formTmdbRating,
       imdbId: formImdbId,
-      releaseMonth: formReleaseMonth,
+      releaseMonth: $('releaseMonthSelect').value ? parseInt($('releaseMonthSelect').value) : null,
       contentRating: formContentRating,
       digitalIntermediate: $('diSelect').value,
       hdrType: $('hdrSelect').value,
