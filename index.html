@@ -22,6 +22,9 @@
     --c-bluray:#3b66e0;
     --c-dvd:#8481a0;
     --c-digital:#b463d1;
+    --c-native:#4fd1c5;
+    --c-atmos:#e08b3b;
+    --c-dolbyvision:#6c5ce7;
     --danger:#d9635a;
     --wishlist:#e0637a;
     --radius:14px;
@@ -233,6 +236,13 @@
   .badge.fmt-bluray{background:var(--c-bluray);}
   .badge.fmt-dvd{background:var(--c-dvd); color:#151520;}
   .badge.fmt-digital{background:var(--c-digital);}
+  .badge.native{background:var(--c-native); color:#0f1f1e;}
+  .badge.atmos{background:var(--c-atmos);}
+  .badge.dolbyvision{background:var(--c-dolbyvision);}
+  .upgrade-chip{
+    font-family:var(--font-mono); font-size:11px; font-weight:600; color:var(--wishlist);
+    margin-left:6px;
+  }
   .stars-row{display:flex; align-items:center; gap:2px; margin-top:2px;}
   .star-static{font-size:12px; color:var(--border);}
   .star-static.filled{color:var(--accent);}
@@ -376,12 +386,12 @@
   }
   .poster-pick-btn:hover{color:var(--text); border-color:var(--accent);}
   .poster-remove-btn{color:var(--danger); border-color:var(--danger);}
-  input[type=text],input[type=number],input[type=url],textarea{
+  input[type=text],input[type=number],input[type=url],textarea,.field-select{
     width:100%; background:var(--surface-2); border:1px solid var(--border);
     color:var(--text); border-radius:var(--radius-sm); padding:10px 12px; font-size:14px;
   }
   textarea{resize:vertical; min-height:60px;}
-  input:focus,textarea:focus{border-color:var(--accent);}
+  input:focus,textarea:focus,.field-select:focus{border-color:var(--accent);}
 
   .format-grid{display:flex; flex-wrap:wrap; gap:8px;}
   .format-option{
@@ -605,6 +615,52 @@
           <div class="format-grid" id="formatGrid"></div>
         </div>
 
+        <div class="form-row">
+          <div class="form-group">
+            <label for="diSelect">Digital Intermediate</label>
+            <select class="field-select" id="diSelect">
+              <option value="">Not researched</option>
+              <option value="4K Native">4K Native</option>
+              <option value="2K Upscale">2K Upscale</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="hdrSelect">4K Type</label>
+            <select class="field-select" id="hdrSelect">
+              <option value="">Not researched</option>
+              <option value="No 4K Available">No 4K Available</option>
+              <option value="HDR">HDR</option>
+              <option value="HDR10">HDR10</option>
+              <option value="HDR10+">HDR10+</option>
+              <option value="Dolby Vision">Dolby Vision</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="aspectRatioInput">Aspect Ratio</label>
+            <input type="text" id="aspectRatioInput" placeholder="e.g. 2.35:1">
+          </div>
+          <div class="form-group">
+            <label for="uhdYearInput">4K Release Year</label>
+            <input type="number" id="uhdYearInput" placeholder="2019" min="2016" max="2100">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="audioFormatsInput">Audio Formats</label>
+          <div class="pill-input-wrap" id="audioFormatsWrap">
+            <input type="text" id="audioFormatsInput" placeholder="e.g. Dolby Atmos, DTS:X…" list="audioSuggestions">
+          </div>
+          <datalist id="audioSuggestions"></datalist>
+        </div>
+
+        <div class="form-group">
+          <label for="upgradePriceInput">Upgrade Price Estimate</label>
+          <input type="number" id="upgradePriceInput" step="0.01" min="0" placeholder="e.g. 18.99">
+        </div>
+
         <div class="form-group">
           <label>Your rating</label>
           <div class="star-picker" id="starPicker"></div>
@@ -698,6 +754,7 @@
   let formPosterUrl = '';
   let pendingUpc = '';
   let formRuntime = null, formImdbRating = null, formTmdbRating = null, formImdbId = '';
+  let formAudioFormats = [];
   let viewMode = localStorage.getItem('view-mode') || 'grid';
   let activeCollection = '';
   let pendingConfirm = null;
@@ -832,6 +889,11 @@
     movies.forEach(m => (m.collections||[]).forEach(c => s.add(c)));
     return [...s].sort();
   }
+  function allAudioFormats(){
+    const s = new Set();
+    movies.forEach(m => (m.audioFormats||[]).forEach(a => s.add(a)));
+    return [...s].sort();
+  }
   function totalSpent(){
     return movies.reduce((sum,m)=>{
       if(m.wishlist) return sum;
@@ -961,9 +1023,14 @@
 
   function cardHtml(m){
     const formats = m.formats || [];
-    const badges = formats.map(f => `<span class="badge ${FORMAT_CLASS[f.type]}">${escapeHtml(f.type)}</span>`).join('');
+    let badges = formats.map(f => `<span class="badge ${FORMAT_CLASS[f.type]}">${escapeHtml(f.type)}</span>`).join('');
+    if(m.digitalIntermediate === '4K Native') badges += `<span class="badge native">4K NATIVE</span>`;
+    if((m.audioFormats||[]).some(a=>/atmos/i.test(a))) badges += `<span class="badge atmos">ATMOS</span>`;
+    if(m.hdrType === 'Dolby Vision') badges += `<span class="badge dolbyvision">DOLBY VISION</span>`;
     const stars = [1,2,3,4,5].map(i => `<span class="star-static ${i<=(m.rating||0)?'filled':''}">★</span>`).join('');
     const price = priceOf(m);
+    const showUpgrade = m.upgradePrice && !formats.some(f=>f.type==='4K UHD');
+    const upgradeChip = showUpgrade ? `<span class="upgrade-chip">↑ $${m.upgradePrice.toFixed(2)}</span>` : '';
     const tags = (m.tags||[]).slice(0,2).map(t=>`<span class="tag-pill-mini" style="${tagStyle(t)}">${escapeHtml(t)}</span>`).join('');
     const letter = (m.title||'?').charAt(0).toUpperCase();
     const posterSrc = m.posterData || m.posterUrl || '';
@@ -987,7 +1054,7 @@
           <div class="badges">${badges}</div>
           ${m.rating ? `<div class="stars-row">${stars}</div>` : ''}
           <div class="card-footer">
-            <span class="price-tag">${(!m.wishlist && price>0) ? '$'+price.toFixed(2) : ''}</span>
+            <span class="price-tag">${(!m.wishlist && price>0) ? '$'+price.toFixed(2) : ''}${upgradeChip}</span>
             <span style="display:flex; gap:4px;">${tags}</span>
           </div>
         </div>
@@ -1018,6 +1085,7 @@
   function updateSuggestionLists(){
     $('tagSuggestions').innerHTML = allTags().map(t=>`<option value="${escapeHtml(t)}">`).join('');
     $('collectionSuggestions').innerHTML = allCollections().map(c=>`<option value="${escapeHtml(c)}">`).join('');
+    $('audioSuggestions').innerHTML = allAudioFormats().map(a=>`<option value="${escapeHtml(a)}">`).join('');
   }
 
   // ---------- Filters / search / sort ----------
@@ -1338,6 +1406,7 @@
   }
   setupPillInput('tagsInput', formTags, 'tagsWrap');
   setupPillInput('collectionsInput', formCollections, 'collectionsWrap');
+  setupPillInput('audioFormatsInput', formAudioFormats, 'audioFormatsWrap');
 
   // ---------- Poster picker ----------
   const POSTER_MAX_W = 400;
@@ -1395,6 +1464,12 @@
     extrasSeq++; // cancel any in-flight extras fetch from a previous form
     checkDuplicate('');
     updatePosterPreview();
+    formAudioFormats.length = 0; // mutate in place — pill input holds a reference to this array
+    $('diSelect').value = '';
+    $('hdrSelect').value = '';
+    $('aspectRatioInput').value = '';
+    $('uhdYearInput').value = '';
+    $('upgradePriceInput').value = '';
     $('wishlistToggle').checked = false;
     $('wishlistLabel').textContent = 'I own this';
     $('notesInput').value = '';
@@ -1402,6 +1477,7 @@
     buildStarPicker();
     buildPills('tagsWrap', formTags, 'tagsInput');
     buildPills('collectionsWrap', formCollections, 'collectionsInput');
+    buildPills('audioFormatsWrap', formAudioFormats, 'audioFormatsInput');
     $('deleteBtn').style.display = 'none';
     $('modalTitle').textContent = 'Add Movie';
   }
@@ -1428,6 +1504,13 @@
     formImdbId = m.imdbId || '';
     checkDuplicate(m.title);
     updatePosterPreview();
+    $('diSelect').value = m.digitalIntermediate || '';
+    $('hdrSelect').value = m.hdrType || '';
+    $('aspectRatioInput').value = m.aspectRatio || '';
+    $('uhdYearInput').value = m.uhdReleaseYear || '';
+    $('upgradePriceInput').value = m.upgradePrice || '';
+    formAudioFormats.length = 0;
+    (m.audioFormats||[]).forEach(a=> formAudioFormats.push(a));
     $('wishlistToggle').checked = !!m.wishlist;
     $('wishlistLabel').textContent = m.wishlist ? 'On my wishlist' : 'I own this';
     $('notesInput').value = m.notes || '';
@@ -1442,6 +1525,7 @@
     buildStarPicker();
     buildPills('tagsWrap', formTags, 'tagsInput');
     buildPills('collectionsWrap', formCollections, 'collectionsInput');
+    buildPills('audioFormatsWrap', formAudioFormats, 'audioFormatsInput');
     $('deleteBtn').style.display = 'block';
     $('modalOverlay').classList.add('open');
   }
@@ -1473,6 +1557,12 @@
       imdbRating: formImdbRating,
       tmdbRating: formTmdbRating,
       imdbId: formImdbId,
+      digitalIntermediate: $('diSelect').value,
+      hdrType: $('hdrSelect').value,
+      audioFormats: formAudioFormats.slice(),
+      aspectRatio: $('aspectRatioInput').value.trim(),
+      uhdReleaseYear: $('uhdYearInput').value ? parseInt($('uhdYearInput').value) : null,
+      upgradePrice: $('upgradePriceInput').value ? parseFloat($('upgradePriceInput').value) : null,
       wishlist: $('wishlistToggle').checked,
       formats,
       rating: formRating,
