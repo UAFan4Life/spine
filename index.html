@@ -22,9 +22,6 @@
     --c-bluray:#3b66e0;
     --c-dvd:#8481a0;
     --c-digital:#b463d1;
-    --c-native:#4fd1c5;
-    --c-atmos:#e08b3b;
-    --c-dolbyvision:#6c5ce7;
     --danger:#d9635a;
     --wishlist:#e0637a;
     --radius:14px;
@@ -57,7 +54,7 @@
   }
   .header-top{
     display:flex; align-items:center; justify-content:space-between;
-    max-width:1100px; margin:0 auto;
+    max-width:1320px; margin:0 auto;
   }
   .wordmark{
     font-family:var(--font-display);
@@ -102,7 +99,7 @@
   .menu-dropdown button.danger-item{color:var(--danger);}
 
   .search-row{
-    max-width:1100px; margin:12px auto 0; display:flex; gap:8px;
+    max-width:1320px; margin:12px auto 0; display:flex; gap:8px;
   }
   .search-input{
     flex:1;
@@ -115,7 +112,7 @@
 
   /* ---------- Stats ---------- */
   .stats-strip{
-    max-width:1100px; margin:12px auto 0;
+    max-width:1320px; margin:12px auto 0;
     display:flex; gap:10px; overflow-x:auto; padding-bottom:2px;
   }
   .stat-pill{
@@ -129,7 +126,7 @@
 
   /* ---------- Filters ---------- */
   .filter-bar{
-    max-width:1100px; margin:14px auto 0; padding:0 0 4px;
+    max-width:1320px; margin:14px auto 0; padding:0 0 4px;
     display:flex; flex-wrap:wrap; gap:8px; align-items:center;
   }
   .segmented{
@@ -153,7 +150,7 @@
   .chip.fmt-dvd.active{color:var(--c-dvd); background:rgba(132,129,160,0.12);}
   .chip.fmt-digital.active{color:var(--c-digital); background:rgba(180,99,209,0.12);}
   .collection-bar{
-    max-width:1100px; margin:10px auto 0;
+    max-width:1320px; margin:10px auto 0;
     display:flex; gap:6px; overflow-x:auto; padding-bottom:2px;
   }
   .collection-bar:empty{display:none;}
@@ -172,7 +169,7 @@
 
   /* ---------- Grid ---------- */
   .movie-grid{
-    max-width:1100px; margin:18px auto 0; padding:0 16px 40px;
+    max-width:1320px; margin:18px auto 0; padding:0 16px 40px;
     display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
     gap:14px;
   }
@@ -184,6 +181,7 @@
     transition:transform .15s ease, border-color .15s ease;
   }
   .movie-card:hover{transform:translateY(-2px); border-color:var(--border);}
+  .movie-card.owns-4k{border-color:var(--c-4k); box-shadow:0 0 0 1px var(--c-4k);}
   .movie-card:active{transform:translateY(0);}
   .card-hole{
     position:absolute; top:10px; left:10px; width:12px; height:12px;
@@ -236,9 +234,10 @@
   .badge.fmt-bluray{background:var(--c-bluray);}
   .badge.fmt-dvd{background:var(--c-dvd); color:#151520;}
   .badge.fmt-digital{background:var(--c-digital);}
-  .badge.native{background:var(--c-native); color:#0f1f1e;}
-  .badge.atmos{background:var(--c-atmos);}
-  .badge.dolbyvision{background:var(--c-dolbyvision);}
+  .badge.quality{
+    background:none; border:1px solid currentColor;
+    font-weight:700;
+  }
   .upgrade-chip{
     font-family:var(--font-mono); font-size:11px; font-weight:600; color:var(--wishlist);
     margin-left:6px;
@@ -464,6 +463,11 @@
     width:100%; margin-top:10px;
   }
 
+  .color-section-title{
+    font-size:11px; text-transform:uppercase; letter-spacing:.6px; font-weight:600;
+    color:var(--text-faint); margin:18px 0 4px;
+  }
+  .color-section-title:first-child{margin-top:0;}
   .tag-color-row{
     display:flex; align-items:center; justify-content:space-between; gap:10px;
     padding:11px 0; border-bottom:1px solid var(--border-soft);
@@ -516,7 +520,7 @@
             <button id="importBtn">⬆ Import backup (.json)</button>
             <button id="tmdbKeyBtn">🔑 TMDB API key</button>
             <button id="omdbKeyBtn">🎬 OMDb key (IMDb ratings)</button>
-            <button id="tagColorBtn">🎨 Tag colors</button>
+            <button id="colorsBtn">🎨 Colors</button>
             <button id="backfillBtn">⟳ Backfill missing info</button>
             <button class="danger-item" id="clearAllBtn">✕ Clear all data</button>
           </div>
@@ -696,14 +700,14 @@
     </div>
   </div>
 
-  <!-- Tag colors -->
-  <div class="modal-overlay" id="tagColorOverlay">
+  <!-- Colors -->
+  <div class="modal-overlay" id="colorsOverlay">
     <div class="modal-panel">
       <div class="modal-header">
-        <div class="modal-title">Tag Colors</div>
-        <button class="icon-btn" id="closeTagColorBtn" aria-label="Close">✕</button>
+        <div class="modal-title">Colors</div>
+        <button class="icon-btn" id="closeColorsBtn" aria-label="Close">✕</button>
       </div>
-      <div id="tagColorList"></div>
+      <div id="colorsList"></div>
     </div>
   </div>
 
@@ -770,6 +774,25 @@
   function saveTagColors(){
     localStorage.setItem('tag-colors', JSON.stringify(tagColors));
     if(cloudOn()) settingsDoc().set({tagColors}, {mergeFields:['tagColors']}).catch(()=>{});
+  }
+  let collectionColors = {};
+  try{ collectionColors = JSON.parse(localStorage.getItem('collection-colors') || '{}') || {}; }catch(e){}
+  function collectionStyle(c){
+    const col = collectionColors[c];
+    return col ? `color:${col}; background:${col}26;` : '';
+  }
+  function saveCollectionColors(){
+    localStorage.setItem('collection-colors', JSON.stringify(collectionColors));
+    if(cloudOn()) settingsDoc().set({collectionColors}, {mergeFields:['collectionColors']}).catch(()=>{});
+  }
+  const QUALITY_BADGES = ['4K Native','Atmos','Dolby Vision'];
+  const QUALITY_BADGE_DEFAULTS = {'4K Native':'#4ade80','Atmos':'#e08b3b','Dolby Vision':'#6c5ce7'};
+  let badgeColors = {};
+  try{ badgeColors = JSON.parse(localStorage.getItem('badge-colors') || '{}') || {}; }catch(e){}
+  function badgeColor(label){ return badgeColors[label] || QUALITY_BADGE_DEFAULTS[label]; }
+  function saveBadgeColors(){
+    localStorage.setItem('badge-colors', JSON.stringify(badgeColors));
+    if(cloudOn()) settingsDoc().set({badgeColors}, {mergeFields:['badgeColors']}).catch(()=>{});
   }
 
   const $ = id => document.getElementById(id);
@@ -846,6 +869,20 @@
         localStorage.setItem('tag-colors', JSON.stringify(tagColors));
       } else if(Object.keys(tagColors).length){
         await settingsDoc().set({tagColors}, {mergeFields:['tagColors']});
+      }
+      const cloudCollColors = sdata.collectionColors || {};
+      if(Object.keys(cloudCollColors).length){
+        collectionColors = Object.assign({}, collectionColors, cloudCollColors);
+        localStorage.setItem('collection-colors', JSON.stringify(collectionColors));
+      } else if(Object.keys(collectionColors).length){
+        await settingsDoc().set({collectionColors}, {mergeFields:['collectionColors']});
+      }
+      const cloudBadgeColors = sdata.badgeColors || {};
+      if(Object.keys(cloudBadgeColors).length){
+        badgeColors = Object.assign({}, badgeColors, cloudBadgeColors);
+        localStorage.setItem('badge-colors', JSON.stringify(badgeColors));
+      } else if(Object.keys(badgeColors).length){
+        await settingsDoc().set({badgeColors}, {mergeFields:['badgeColors']});
       }
     }catch(e){
       setSyncState('error');
@@ -1024,9 +1061,9 @@
   function cardHtml(m){
     const formats = m.formats || [];
     let badges = formats.map(f => `<span class="badge ${FORMAT_CLASS[f.type]}">${escapeHtml(f.type)}</span>`).join('');
-    if(m.digitalIntermediate === '4K Native') badges += `<span class="badge native">4K NATIVE</span>`;
-    if((m.audioFormats||[]).some(a=>/atmos/i.test(a))) badges += `<span class="badge atmos">ATMOS</span>`;
-    if(m.hdrType === 'Dolby Vision') badges += `<span class="badge dolbyvision">DOLBY VISION</span>`;
+    if(m.digitalIntermediate === '4K Native') badges += `<span class="badge quality" style="color:${badgeColor('4K Native')}">4K NATIVE</span>`;
+    if((m.audioFormats||[]).some(a=>/atmos/i.test(a))) badges += `<span class="badge quality" style="color:${badgeColor('Atmos')}">ATMOS</span>`;
+    if(m.hdrType === 'Dolby Vision') badges += `<span class="badge quality" style="color:${badgeColor('Dolby Vision')}">DOLBY VISION</span>`;
     const stars = [1,2,3,4,5].map(i => `<span class="star-static ${i<=(m.rating||0)?'filled':''}">★</span>`).join('');
     const price = priceOf(m);
     const showUpgrade = m.upgradePrice && !formats.some(f=>f.type==='4K UHD');
@@ -1037,8 +1074,9 @@
     const posterBlock = posterSrc
       ? `<img class="poster" src="${escapeHtml(posterSrc)}" alt="" data-letter="${escapeHtml(letter)}">`
       : `<div class="poster-placeholder">${escapeHtml(letter)}</div>`;
+    const owns4k = formats.some(f=>f.type==='4K UHD');
     return `
-      <div class="movie-card" data-id="${m.id}">
+      <div class="movie-card${owns4k ? ' owns-4k' : ''}" data-id="${m.id}">
         <div class="card-hole"></div>
         ${m.wishlist ? '<div class="wishlist-ribbon">WISHLIST</div>' : ''}
         ${posterBlock}
@@ -1065,7 +1103,7 @@
     const cols = allCollections();
     if(activeCollection && !cols.includes(activeCollection)) activeCollection = '';
     $('collectionChips').innerHTML = cols.map(c=>
-      `<button class="chip coll ${c === activeCollection ? 'active' : ''}" data-coll="${escapeHtml(c)}">${escapeHtml(c)}</button>`
+      `<button class="chip coll ${c === activeCollection ? 'active' : ''}" style="${collectionStyle(c)}" data-coll="${escapeHtml(c)}">${escapeHtml(c)}</button>`
     ).join('');
   }
   $('collectionChips').addEventListener('click', e=>{
@@ -1381,6 +1419,11 @@
         pill.style.color = tagColors[val];
         pill.style.background = tagColors[val] + '26';
         pill.style.borderColor = tagColors[val] + '55';
+      }
+      if(wrapId === 'collectionsWrap' && collectionColors[val]){
+        pill.style.color = collectionColors[val];
+        pill.style.background = collectionColors[val] + '26';
+        pill.style.borderColor = collectionColors[val] + '55';
       }
       pill.querySelector('button').addEventListener('click', ()=>{
         const idx = arr.indexOf(val);
@@ -1754,36 +1797,52 @@
     backfillAll();
   });
 
-  function renderTagColorList(){
-    const tags = allTags();
-    if(!tags.length){
-      $('tagColorList').innerHTML = '<p style="color:var(--text-dim); font-size:13.5px;">No tags yet — add tags to some movies first.</p>';
-      return;
-    }
-    $('tagColorList').innerHTML = tags.map(t=>`
+  function colorRowsHtml(group, items, colorOf, emptyMsg){
+    if(!items.length) return `<p style="color:var(--text-dim); font-size:13px; margin:0 0 8px;">${emptyMsg}</p>`;
+    return items.map(item=>{
+      const current = colorOf(item);
+      const styleAttr = current ? `color:${current}; background:${current}26;` : '';
+      return `
       <div class="tag-color-row">
-        <span class="tag-color-name" style="${tagStyle(t)}">${escapeHtml(t)}</span>
+        <span class="tag-color-name" style="${styleAttr}">${escapeHtml(item)}</span>
         <span class="color-dots">
-          <button class="color-dot none ${!tagColors[t] ? 'selected' : ''}" data-tag="${escapeHtml(t)}" data-color="" title="No color">✕</button>
-          ${TAG_PALETTE.map(c=>`<button class="color-dot ${tagColors[t] === c ? 'selected' : ''}" style="background:${c}" data-tag="${escapeHtml(t)}" data-color="${c}" title="${c}"></button>`).join('')}
+          <button class="color-dot none ${!current || (group==='badge' && !badgeColors[item]) ? 'selected' : ''}" data-group="${group}" data-item="${escapeHtml(item)}" data-color="" title="${group==='badge'?'Default':'No color'}">✕</button>
+          ${TAG_PALETTE.map(c=>`<button class="color-dot ${current === c ? 'selected' : ''}" style="background:${c}" data-group="${group}" data-item="${escapeHtml(item)}" data-color="${c}" title="${c}"></button>`).join('')}
         </span>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }
-  $('tagColorBtn').addEventListener('click', ()=>{
+  function renderColorsManager(){
+    $('colorsList').innerHTML =
+      '<div class="color-section-title">Tags</div>' +
+      colorRowsHtml('tag', allTags(), t=>tagColors[t], 'No tags yet — add tags to some movies first.') +
+      '<div class="color-section-title">Collections</div>' +
+      colorRowsHtml('coll', allCollections(), c=>collectionColors[c], 'No collections yet — add a collection to some movies first.') +
+      '<div class="color-section-title">Badges</div>' +
+      colorRowsHtml('badge', QUALITY_BADGES, b=>badgeColor(b), 'No badges.');
+  }
+  $('colorsBtn').addEventListener('click', ()=>{
     $('menuDropdown').classList.remove('open');
-    renderTagColorList();
-    $('tagColorOverlay').classList.add('open');
+    renderColorsManager();
+    $('colorsOverlay').classList.add('open');
   });
-  $('closeTagColorBtn').addEventListener('click', ()=> $('tagColorOverlay').classList.remove('open'));
-  $('tagColorOverlay').addEventListener('click', e=>{ if(e.target === $('tagColorOverlay')) $('tagColorOverlay').classList.remove('open'); });
-  $('tagColorList').addEventListener('click', e=>{
+  $('closeColorsBtn').addEventListener('click', ()=> $('colorsOverlay').classList.remove('open'));
+  $('colorsOverlay').addEventListener('click', e=>{ if(e.target === $('colorsOverlay')) $('colorsOverlay').classList.remove('open'); });
+  $('colorsList').addEventListener('click', e=>{
     const dot = e.target.closest('.color-dot'); if(!dot) return;
-    const tag = dot.dataset.tag;
-    if(dot.dataset.color) tagColors[tag] = dot.dataset.color;
-    else delete tagColors[tag];
-    saveTagColors();
-    renderTagColorList();
-    render(); // refresh card pills
+    const { group, item, color } = dot.dataset;
+    if(group === 'tag'){
+      if(color) tagColors[item] = color; else delete tagColors[item];
+      saveTagColors();
+    } else if(group === 'coll'){
+      if(color) collectionColors[item] = color; else delete collectionColors[item];
+      saveCollectionColors();
+    } else if(group === 'badge'){
+      if(color) badgeColors[item] = color; else delete badgeColors[item];
+      saveBadgeColors();
+    }
+    renderColorsManager();
+    render(); // refresh cards/chips/pills
   });
 
   $('authBtn').addEventListener('click', async ()=>{
