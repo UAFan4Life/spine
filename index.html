@@ -209,7 +209,12 @@
     font-family:var(--font-display); font-size:19px; letter-spacing:.5px;
     line-height:1.05; color:var(--text);
   }
-  .card-year{font-family:var(--font-mono); font-size:12.5px; color:var(--accent-light); margin-top:1px;}
+  .card-year-row{display:flex; align-items:baseline; justify-content:space-between; gap:6px; margin-top:1px;}
+  .card-year{font-family:var(--font-mono); font-size:12.5px; color:var(--accent-light);}
+  .rating-badge{
+    font-family:var(--font-mono); font-size:9.5px; font-weight:700; color:var(--text-dim);
+    border:1px solid var(--border-soft); border-radius:4px; padding:1px 5px; flex:0 0 auto; white-space:nowrap;
+  }
   .score-block{margin-top:5px; display:flex; flex-direction:column; gap:3px;}
   .score-row{display:flex; align-items:center; gap:7px;}
   .score-src{
@@ -817,6 +822,8 @@
   let formPosterUrl = '';
   let pendingUpc = '';
   let formRuntime = null, formImdbRating = null, formTmdbRating = null, formImdbId = '';
+  let formReleaseMonth = null, formContentRating = '';
+  const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   let formAudioFormats = [];
   let viewMode = localStorage.getItem('view-mode') || 'grid';
   let activeCollection = '';
@@ -1115,8 +1122,7 @@
   }
   function monthLabel(ym){
     const [y,mo] = ym.split('-');
-    const names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    return names[parseInt(mo,10)-1] + " '" + y.slice(2);
+    return MONTH_NAMES[parseInt(mo,10)-1] + " '" + y.slice(2);
   }
 
   function renderMovies(){
@@ -1187,10 +1193,13 @@
         <div class="card-body">
           <div>
             <div class="card-title">${escapeHtml(m.title)}</div>
-            <div class="card-year">${[
-              m.year,
-              m.runtime ? fmtRuntime(m.runtime) : null
-            ].filter(Boolean).join(' · ')}</div>
+            <div class="card-year-row">
+              <div class="card-year">${[
+                (m.year && m.releaseMonth) ? (MONTH_NAMES[m.releaseMonth-1] + ' ' + m.year) : (m.year || ''),
+                m.runtime ? fmtRuntime(m.runtime) : null
+              ].filter(Boolean).join(' · ')}</div>
+              ${m.contentRating ? `<span class="rating-badge">${escapeHtml(m.contentRating)}</span>` : ''}
+            </div>
             ${scoreRow(m)}
           </div>
           <div class="badges">${badges}</div>
@@ -1278,19 +1287,33 @@
     showToast(k.trim() ? 'OMDb key saved' : 'OMDb key cleared');
   }
 
-  // fetch runtime + IMDb id from TMDB details; real IMDb rating from OMDb when a key is set
+  // fetch runtime + IMDb id + US content rating from TMDB details; real IMDb rating from OMDb when a key is set
+  function extractUSCertification(releaseDatesData){
+    const us = (releaseDatesData.results || []).find(r=>r.iso_3166_1 === 'US');
+    if(!us) return '';
+    const dates = us.release_dates || [];
+    const theatrical = dates.find(rd=>rd.type===3 && rd.certification);
+    if(theatrical) return theatrical.certification;
+    const any = dates.find(rd=>rd.certification);
+    return any ? any.certification : '';
+  }
   let extrasSeq = 0;
   async function fetchMovieExtras(tmdbId, tmdbVote){
     const seq = ++extrasSeq;
     formTmdbRating = (tmdbVote || tmdbVote === 0) ? Math.round(tmdbVote * 10) / 10 : null;
-    formRuntime = null; formImdbRating = null; formImdbId = '';
+    formRuntime = null; formImdbRating = null; formImdbId = ''; formContentRating = '';
     if(!tmdbId) return;
     try{
-      const res = await fetch('https://api.themoviedb.org/3/movie/' + tmdbId + '?api_key=' + encodeURIComponent(tmdbKey()));
-      const d = await res.json();
+      const [dres, crres] = await Promise.all([
+        fetch('https://api.themoviedb.org/3/movie/' + tmdbId + '?api_key=' + encodeURIComponent(tmdbKey())),
+        fetch('https://api.themoviedb.org/3/movie/' + tmdbId + '/release_dates?api_key=' + encodeURIComponent(tmdbKey()))
+      ]);
+      const d = await dres.json();
+      const cr = await crres.json();
       if(seq !== extrasSeq) return;
       formRuntime = d.runtime || null;
       formImdbId = d.imdb_id || '';
+      formContentRating = extractUSCertification(cr);
       if(formImdbId && omdbKey()){
         const or = await fetch('https://www.omdbapi.com/?apikey=' + encodeURIComponent(omdbKey()) + '&i=' + encodeURIComponent(formImdbId));
         const od = await or.json();
@@ -1344,6 +1367,7 @@
         vote: (typeof r.vote_average === 'number') ? r.vote_average : null,
         title: r.title,
         year: r.release_date ? parseInt(r.release_date.slice(0,4)) : null,
+        month: r.release_date ? parseInt(r.release_date.slice(5,7)) : null,
         genres: (r.genre_ids || []).slice(0,3).map(id=>TMDB_GENRES[id]).filter(Boolean),
         thumb: r.poster_path ? 'https://image.tmdb.org/t/p/w92' + r.poster_path : '',
         poster: r.poster_path ? 'https://image.tmdb.org/t/p/w342' + r.poster_path : ''
@@ -1361,6 +1385,7 @@
           $('titleInput').value = r.title;
           checkDuplicate(r.title);
           fetchMovieExtras(r.id, r.vote);
+          formReleaseMonth = r.month || null;
           if(r.year) $('yearInput').value = r.year;
           if(r.poster){ formPosterUrl = r.poster; updatePosterPreview(); }
           let added = false;
@@ -1608,6 +1633,7 @@
     formPosterUrl = '';
     pendingUpc = '';
     formRuntime = null; formImdbRating = null; formTmdbRating = null; formImdbId = '';
+    formReleaseMonth = null; formContentRating = '';
     extrasSeq++; // cancel any in-flight extras fetch from a previous form
     checkDuplicate('');
     updatePosterPreview();
@@ -1650,6 +1676,8 @@
     formImdbRating = m.imdbRating || null;
     formTmdbRating = m.tmdbRating || null;
     formImdbId = m.imdbId || '';
+    formReleaseMonth = m.releaseMonth || null;
+    formContentRating = m.contentRating || '';
     checkDuplicate(m.title);
     updatePosterPreview();
     $('diSelect').value = m.digitalIntermediate || '';
@@ -1706,6 +1734,8 @@
       imdbRating: formImdbRating,
       tmdbRating: formTmdbRating,
       imdbId: formImdbId,
+      releaseMonth: formReleaseMonth,
+      contentRating: formContentRating,
       digitalIntermediate: $('diSelect').value,
       hdrType: $('hdrSelect').value,
       audioFormats: formAudioFormats.slice(),
@@ -1830,9 +1860,9 @@
     promptOmdbKey();
   });
 
-  // ---------- Backfill: fetch missing runtime/ratings/posters for old entries ----------
+  // ---------- Backfill: fetch missing runtime/ratings/posters/month/content-rating for old entries ----------
   function needsBackfill(m){
-    return !m.runtime || !m.imdbId || !m.tmdbRating
+    return !m.runtime || !m.imdbId || !m.tmdbRating || !m.releaseMonth || !m.contentRating
       || (omdbKey() && !m.imdbRating)
       || (!m.posterUrl && !m.posterData);
   }
@@ -1840,7 +1870,7 @@
   async function backfillOne(m){
     let changed = false;
     try{
-      if(!m.runtime || !m.imdbId || !m.tmdbRating || !m.year || (!m.posterUrl && !m.posterData)){
+      if(!m.runtime || !m.imdbId || !m.tmdbRating || !m.year || !m.releaseMonth || !m.contentRating || (!m.posterUrl && !m.posterData)){
         const url = 'https://api.themoviedb.org/3/search/movie?api_key=' + encodeURIComponent(tmdbKey())
           + '&query=' + encodeURIComponent(m.title)
           + (m.year ? '&year=' + m.year : '') + '&include_adult=false';
@@ -1851,11 +1881,18 @@
           if(!m.tmdbRating && typeof sr.vote_average === 'number'){ m.tmdbRating = Math.round(sr.vote_average * 10) / 10; changed = true; }
           if(!m.posterUrl && !m.posterData && sr.poster_path){ m.posterUrl = 'https://image.tmdb.org/t/p/w342' + sr.poster_path; changed = true; }
           if(!m.year && sr.release_date){ m.year = parseInt(sr.release_date.slice(0,4)); changed = true; }
-          if(!m.runtime || !m.imdbId){
+          if(!m.releaseMonth && sr.release_date){ const mo = parseInt(sr.release_date.slice(5,7)); if(mo){ m.releaseMonth = mo; changed = true; } }
+          if(!m.runtime || !m.imdbId || !m.contentRating){
             const dres = await fetch('https://api.themoviedb.org/3/movie/' + sr.id + '?api_key=' + encodeURIComponent(tmdbKey()));
             const d = await dres.json();
             if(!m.runtime && d.runtime){ m.runtime = d.runtime; changed = true; }
             if(!m.imdbId && d.imdb_id){ m.imdbId = d.imdb_id; changed = true; }
+            if(!m.contentRating){
+              const crres = await fetch('https://api.themoviedb.org/3/movie/' + sr.id + '/release_dates?api_key=' + encodeURIComponent(tmdbKey()));
+              const cr = await crres.json();
+              const rating = extractUSCertification(cr);
+              if(rating){ m.contentRating = rating; changed = true; }
+            }
           }
         }
       }
