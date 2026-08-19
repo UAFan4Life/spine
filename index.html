@@ -885,6 +885,11 @@
         </div>
 
         <div class="form-group">
+          <label for="amazonPriceInput">Amazon Price</label>
+          <input type="number" id="amazonPriceInput" step="0.01" min="0" placeholder="e.g. 14.99">
+        </div>
+
+        <div class="form-group">
           <label>Formats</label>
           <div class="format-grid" id="bookFormatGrid"></div>
         </div>
@@ -949,7 +954,7 @@
   <div class="modal-overlay" id="statsOverlay">
     <div class="modal-panel">
       <div class="modal-header">
-        <div class="modal-title">Stats</div>
+        <div class="modal-title" id="statsModalTitle">Stats</div>
         <button class="icon-btn" id="closeStatsBtn" aria-label="Close">✕</button>
       </div>
       <div id="statsContent"></div>
@@ -1484,6 +1489,38 @@
     const [y,mo] = ym.split('-');
     return MONTH_NAMES[parseInt(mo,10)-1] + " '" + y.slice(2);
   }
+  function bookWishlistTotal(){
+    const targets = books.filter(b=> b.wishlist && b.amazonPrice);
+    return { total: targets.reduce((s,b)=> s + b.amazonPrice, 0), count: targets.length };
+  }
+  function bookFormatAverages(){
+    const sums = {}, counts = {};
+    BOOK_FORMAT_TYPES.forEach(t=>{ sums[t] = 0; counts[t] = 0; });
+    books.filter(b=>!b.wishlist).forEach(b=>{
+      (b.formats||[]).forEach(f=>{
+        if(sums.hasOwnProperty(f.type)){ sums[f.type] += (parseFloat(f.price)||0); counts[f.type]++; }
+      });
+    });
+    return BOOK_FORMAT_TYPES.map(t=>({ type:t, avg: counts[t] ? sums[t]/counts[t] : null, count: counts[t] }));
+  }
+  function topSeries(n){
+    const counts = {};
+    books.forEach(b=> (b.collections||[]).forEach(c=> counts[c] = (counts[c]||0) + 1));
+    return Object.entries(counts).sort((a,b)=> b[1]-a[1]).slice(0, n||10);
+  }
+  function bookMonthBucket(b){
+    const d = b.acquiredDate || (b.dateAdded ? new Date(b.dateAdded).toISOString().slice(0,7) : '');
+    return d ? d.slice(0,7) : '';
+  }
+  function bookSpendByMonth(){
+    const sums = {};
+    books.filter(b=>!b.wishlist).forEach(b=>{
+      const bucket = bookMonthBucket(b);
+      if(!bucket) return;
+      sums[bucket] = (sums[bucket]||0) + bookPriceOf(b);
+    });
+    return Object.entries(sums).sort((a,b)=> a[0].localeCompare(b[0]));
+  }
 
   function renderMovies(){
     if(currentMode === 'books'){ renderBooksGrid(); return; }
@@ -1593,6 +1630,7 @@
     const badges = formats.map(f => `<span class="badge ${BOOK_FORMAT_CLASS[f.type]}">${escapeHtml(f.type)}</span>`).join('');
     const stars = [1,2,3,4,5].map(i => `<span class="star-static ${i<=(b.rating||0)?'filled':''}">★</span>`).join('');
     const price = bookPriceOf(b);
+    const amazonChip = (b.wishlist && b.amazonPrice) ? `<span class="upgrade-chip">AMZN $${b.amazonPrice.toFixed(2)}</span>` : '';
     const tags = (b.tags||[]).slice(0,2).map(t=>`<span class="tag-pill-mini" style="${tagStyle(t)}">${escapeHtml(t)}</span>`).join('');
     const letter = (b.title||'?').charAt(0).toUpperCase();
     const posterSrc = b.posterData || b.posterUrl || '';
@@ -1621,7 +1659,7 @@
           <div class="badges">${badges}</div>
           ${b.rating ? `<div class="stars-row">${stars}</div>` : ''}
           <div class="card-footer">
-            <span class="price-tag">${(!b.wishlist && price>0) ? '$'+price.toFixed(2) : ''}</span>
+            <span class="price-tag">${(!b.wishlist && price>0) ? '$'+price.toFixed(2) : ''}${amazonChip}</span>
             <span style="display:flex; gap:4px;">${tags}</span>
           </div>
         </div>
@@ -1888,7 +1926,7 @@
     checkDuplicate(q);
     clearTimeout(lookupTimer);
     if(q.length < 3){ hideLookup(); return; }
-    lookupTimer = setTimeout(()=> runLookup(q), 450);
+    lookupTimer = setTimeout(()=> runLookup(q), 150);
   });
   async function runLookup(q){
     const seq = ++lookupSeq;
@@ -1958,7 +1996,7 @@
     checkBookDuplicate(q);
     clearTimeout(bookLookupTimer);
     if(q.length < 3){ hideBookLookup(); return; }
-    bookLookupTimer = setTimeout(()=> runBookLookup(q), 450);
+    bookLookupTimer = setTimeout(()=> runBookLookup(q), 150);
   });
   async function runBookLookup(q){
     const seq = ++bookLookupSeq;
@@ -2543,6 +2581,7 @@
     checkBookDuplicate('');
     updateBookPosterPreview();
     $('bookAcquiredDateInput').value = new Date().toISOString().slice(0,10);
+    $('amazonPriceInput').value = '';
     $('bookWishlistToggle').checked = false;
     $('bookWishlistLabel').textContent = 'I own this';
     $('readStatusSelect').value = '';
@@ -2579,6 +2618,7 @@
     checkBookDuplicate(b.title);
     updateBookPosterPreview();
     $('bookAcquiredDateInput').value = b.acquiredDate || '';
+    $('amazonPriceInput').value = b.amazonPrice || '';
     $('bookWishlistToggle').checked = !!b.wishlist;
     $('bookWishlistLabel').textContent = b.wishlist ? 'On my wishlist' : 'I own this';
     $('readStatusSelect').value = b.readStatus || '';
@@ -2627,6 +2667,7 @@
       publicRatingCount: formBookPublicRatingCount,
       readStatus: $('readStatusSelect').value,
       acquiredDate: $('bookAcquiredDateInput').value,
+      amazonPrice: $('amazonPriceInput').value ? parseFloat($('amazonPriceInput').value) : null,
       wishlist: $('bookWishlistToggle').checked,
       formats,
       rating: formBookRating,
@@ -3022,10 +3063,89 @@
 
     $('statsContent').innerHTML = html;
   }
+
+  function renderBookStatsDashboard(){
+    const owned = books.filter(b=>!b.wishlist);
+    let html = '';
+
+    const wt = bookWishlistTotal();
+    html += `<div class="stat-hero">
+      <div class="hero-num">$${wt.total.toFixed(2)}</div>
+      <div class="hero-label">to buy your wishlist on Amazon${wt.count ? ' — ' + wt.count + ' ' + (wt.count===1?'book':'books') : ''}</div>
+    </div>`;
+
+    html += '<div class="color-section-title">Format Mix</div>';
+    const fmtCounts = BOOK_FORMAT_TYPES.map(t=>({type:t, count: owned.filter(b=>(b.formats||[]).some(f=>f.type===t)).length}));
+    const fmtTotal = fmtCounts.reduce((s,f)=>s+f.count,0);
+    if(!fmtTotal){
+      html += '<p class="stats-empty">No owned formats yet.</p>';
+    } else {
+      let acc = 0;
+      const present = fmtCounts.filter(f=>f.count>0);
+      const stops = present.map(f=>{
+        const pct = f.count/fmtTotal*100;
+        const seg = `${BOOK_FORMAT_COLOR_VAR[f.type]} ${acc}% ${acc+pct}%`;
+        acc += pct;
+        return seg;
+      }).join(', ');
+      html += `<div class="donut-row">
+        <div class="donut" style="background:conic-gradient(${stops})"><div class="donut-hole">${fmtTotal}<br>owned</div></div>
+        <div class="donut-legend">${present.map(f=>`
+          <div class="donut-legend-row"><span class="donut-swatch" style="background:${BOOK_FORMAT_COLOR_VAR[f.type]}"></span>${escapeHtml(f.type)} · ${f.count} (${Math.round(f.count/fmtTotal*100)}%)</div>
+        `).join('')}</div>
+      </div>`;
+    }
+
+    html += '<div class="color-section-title">Average Price Paid</div>';
+    const avgs = bookFormatAverages().filter(a=>a.count);
+    if(!avgs.length){
+      html += '<p class="stats-empty">No prices recorded yet.</p>';
+    } else {
+      html += avgs.map(a=>`
+        <div class="avg-price-row"><span>${escapeHtml(a.type)}</span><span class="avg-num">$${a.avg.toFixed(2)}</span></div>
+      `).join('');
+    }
+
+    html += '<div class="color-section-title">Top Series</div>';
+    const ser = topSeries(10);
+    if(!ser.length){
+      html += '<p class="stats-empty">No series yet.</p>';
+    } else {
+      const maxCount = ser[0][1];
+      html += '<div class="bar-list">' + ser.map(([name,count])=>{
+        const pct = Math.round(count/maxCount*100);
+        const color = collectionColors[name] || 'var(--border)';
+        return `<div class="bar-row">
+          <span class="bar-label" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+          <span class="bar-track"><span class="bar-fill" style="width:${pct}%; background:${color}"></span></span>
+          <span class="bar-num">${count}</span>
+        </div>`;
+      }).join('') + '</div>';
+    }
+
+    html += '<div class="color-section-title">Spend by Month</div>';
+    const months = bookSpendByMonth();
+    if(!months.length){
+      html += '<p class="stats-empty">No spending recorded yet.</p>';
+    } else {
+      const maxAmt = Math.max(...months.map(([,amt])=>amt), 1);
+      html += '<div class="month-strip">' + months.map(([ym,amt])=>{
+        const h = Math.max(2, Math.round(amt/maxAmt*90));
+        return `<div class="month-bar-wrap">
+          <span class="month-bar-amt">$${Math.round(amt)}</span>
+          <span class="month-bar" style="height:${h}px"></span>
+          <span class="month-bar-label">${monthLabel(ym)}</span>
+        </div>`;
+      }).join('') + '</div>';
+    }
+
+    $('statsContent').innerHTML = html;
+  }
+
   $('statsBtn').addEventListener('click', ()=>{
     $('menuDropdown').classList.remove('open');
-    if(currentMode === 'books'){ showToast('Full stats dashboard for books is coming soon — check the stats strip up top for now'); return; }
-    renderStatsDashboard();
+    $('statsModalTitle').textContent = currentMode === 'books' ? 'Book Stats' : 'Stats';
+    if(currentMode === 'books'){ renderBookStatsDashboard(); } else { renderStatsDashboard(); }
     $('statsOverlay').classList.add('open');
   });
   $('closeStatsBtn').addEventListener('click', ()=> $('statsOverlay').classList.remove('open'));
@@ -3151,6 +3271,11 @@
         <div class="detail-badges">${badges}</div>
       </div>
     </div>`;
+
+    if(b.wishlist && b.amazonPrice){
+      html += '<div class="color-section-title">Amazon Price</div>';
+      html += `<div class="avg-price-row"><span>Last checked</span><span class="avg-num">$${b.amazonPrice.toFixed(2)}</span></div>`;
+    }
 
     html += '<div class="color-section-title">Formats Owned</div>';
     const formats = b.formats || [];
