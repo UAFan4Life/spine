@@ -22,6 +22,10 @@
     --c-bluray:#3b66e0;
     --c-dvd:#8481a0;
     --c-digital:#b463d1;
+    --c-hardcover:#a87c4f;
+    --c-paperback:#7a9e6e;
+    --c-ebook:#4fa8d8;
+    --c-audiobook:#d97a4f;
     --danger:#d9635a;
     --wishlist:#e0637a;
     --radius:14px;
@@ -54,8 +58,17 @@
   }
   .header-top{
     display:flex; align-items:center; justify-content:space-between;
-    max-width:1320px; margin:0 auto;
+    max-width:1320px; margin:0 auto; gap:12px;
   }
+  .mode-toggle{
+    display:flex; background:var(--surface); border:1px solid var(--border);
+    border-radius:999px; padding:3px; flex:0 0 auto;
+  }
+  .mode-btn{
+    background:none; border:none; color:var(--text-dim);
+    padding:6px 16px; border-radius:999px; font-size:13px; font-weight:600;
+  }
+  .mode-btn.active{background:var(--accent); color:#14141a;}
   .wordmark{
     font-family:var(--font-display);
     font-size:30px;
@@ -149,6 +162,10 @@
   .chip.fmt-bluray.active{color:var(--c-bluray); background:rgba(59,102,224,0.12);}
   .chip.fmt-dvd.active{color:var(--c-dvd); background:rgba(132,129,160,0.12);}
   .chip.fmt-digital.active{color:var(--c-digital); background:rgba(180,99,209,0.12);}
+  .chip.fmt-hardcover.active{color:var(--c-hardcover); background:rgba(168,124,79,0.14);}
+  .chip.fmt-paperback.active{color:var(--c-paperback); background:rgba(122,158,110,0.14);}
+  .chip.fmt-ebook.active{color:var(--c-ebook); background:rgba(79,168,216,0.14);}
+  .chip.fmt-audiobook.active{color:var(--c-audiobook); background:rgba(217,122,79,0.14);}
   .collection-bar{
     max-width:1320px; margin:10px auto 0;
     display:flex; gap:6px; overflow-x:auto; padding-bottom:2px;
@@ -239,6 +256,10 @@
   .badge.fmt-bluray{background:var(--c-bluray);}
   .badge.fmt-dvd{background:var(--c-dvd); color:#151520;}
   .badge.fmt-digital{background:var(--c-digital);}
+  .badge.fmt-hardcover{background:var(--c-hardcover);}
+  .badge.fmt-paperback{background:var(--c-paperback); color:#132015;}
+  .badge.fmt-ebook{background:var(--c-ebook);}
+  .badge.fmt-audiobook{background:var(--c-audiobook);}
   .badge.quality{font-weight:700;}
   .upgrade-chip{
     font-family:var(--font-mono); font-size:11px; font-weight:600; color:var(--wishlist);
@@ -531,6 +552,23 @@
   .month-bar-label{font-family:var(--font-mono); font-size:9.5px; color:var(--text-dim); white-space:nowrap;}
   .stats-empty{color:var(--text-dim); font-size:13px; margin:0 0 8px;}
 
+  /* ---------- Movie detail ---------- */
+  .detail-header-row{display:flex; gap:14px; margin-bottom:6px;}
+  .detail-poster{width:110px; flex:0 0 auto; aspect-ratio:2/3; object-fit:cover; border-radius:var(--radius-sm); display:block;}
+  .detail-poster-placeholder{
+    width:110px; flex:0 0 auto; aspect-ratio:2/3; border-radius:var(--radius-sm);
+    display:flex; align-items:center; justify-content:center;
+    background:linear-gradient(160deg, var(--surface-2), var(--surface));
+    color:var(--text-faint); font-family:var(--font-display); font-size:30px;
+  }
+  .detail-header-info{display:flex; flex-direction:column; gap:4px; min-width:0;}
+  .detail-badges{display:flex; flex-wrap:wrap; gap:4px; margin-top:2px;}
+  .detail-notes{
+    font-size:13.5px; color:var(--text-dim); line-height:1.5; white-space:pre-wrap;
+    background:var(--surface-2); border-radius:var(--radius-sm); padding:10px 12px;
+  }
+  .detail-pills{display:flex; flex-wrap:wrap; gap:6px; margin:0 0 4px;}
+
   .confirm-overlay{
     position:fixed; inset:0; background:rgba(10,10,14,0.8); z-index:70;
     display:none; align-items:center; justify-content:center; padding:20px;
@@ -556,6 +594,10 @@
   <header class="app-header">
     <div class="header-top">
       <div class="wordmark">SPINE<span class="dot">.</span></div>
+      <div class="mode-toggle" id="modeToggle">
+        <button class="mode-btn active" data-appmode="movies">Movies</button>
+        <button class="mode-btn" data-appmode="books">Books</button>
+      </div>
       <div class="header-actions">
         <div class="sync-indicator"><span class="sync-dot" id="syncDot"></span><span id="syncLabel">synced</span></div>
         <div style="position:relative;">
@@ -590,7 +632,18 @@
         <button class="chip fmt-dvd" data-fmt="DVD">DVD</button>
         <button class="chip fmt-digital" data-fmt="Digital">Digital</button>
       </div>
+      <div class="chip-scroll" id="bookFormatChips" style="display:none;">
+        <button class="chip fmt-hardcover" data-bfmt="Hardcover">Hardcover</button>
+        <button class="chip fmt-paperback" data-bfmt="Paperback">Paperback</button>
+        <button class="chip fmt-ebook" data-bfmt="Ebook">Ebook</button>
+        <button class="chip fmt-audiobook" data-bfmt="Audiobook">Audiobook</button>
+      </div>
       <div class="chip-scroll" id="ratingChips"></div>
+      <div class="chip-scroll" id="readStatusChips" style="display:none;">
+        <button class="chip" data-rstat="unread">Unread</button>
+        <button class="chip" data-rstat="reading">Reading</button>
+        <button class="chip" data-rstat="read">Read</button>
+      </div>
       <select class="sort-select" id="sortSelect">
         <option value="recent">Recently added</option>
         <option value="title">Title A–Z</option>
@@ -621,6 +674,7 @@
   <div class="toast" id="toast"></div>
   <input type="file" id="importFile" accept="application/json" class="visually-hidden">
   <input type="file" id="posterFile" accept="image/*" class="visually-hidden">
+  <input type="file" id="bookPosterFile" accept="image/*" class="visually-hidden">
 
   <!-- Add/Edit Modal -->
   <div class="modal-overlay" id="modalOverlay">
@@ -769,6 +823,117 @@
     </div>
   </div>
 
+  <!-- Add/Edit Book Modal -->
+  <div class="modal-overlay" id="bookModalOverlay">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <div class="modal-title" id="bookModalTitle">Add Book</div>
+        <button class="icon-btn" id="closeBookModalBtn" aria-label="Close">✕</button>
+      </div>
+      <form id="bookForm">
+        <div class="form-group lookup-wrap">
+          <label for="bookTitleInput">Title</label>
+          <input type="text" id="bookTitleInput" required placeholder="start typing to search…" autocomplete="off">
+          <div class="lookup-results" id="bookLookupResults"></div>
+          <div class="dupe-warn" id="bookDupeWarn"></div>
+        </div>
+
+        <div class="form-group">
+          <label for="authorInput">Author</label>
+          <input type="text" id="authorInput" placeholder="e.g. Frank Herbert">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="publishYearInput">Publish Year</label>
+            <input type="number" id="publishYearInput" placeholder="1965" min="1400" max="2100">
+          </div>
+          <div class="form-group">
+            <label for="pageCountInput">Page Count</label>
+            <input type="number" id="pageCountInput" placeholder="412" min="0">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="isbnInput">ISBN</label>
+          <input type="text" id="isbnInput" placeholder="e.g. 9780441172719">
+        </div>
+
+        <div class="form-group">
+          <label>Cover art</label>
+          <div class="poster-picker">
+            <img id="bookPosterPreview" alt="" style="display:none;">
+            <button type="button" class="poster-pick-btn" id="bookPosterPickBtn">＋ Add image</button>
+            <button type="button" class="poster-remove-btn" id="bookPosterRemoveBtn" style="display:none;" aria-label="Remove image">✕</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="bookAcquiredDateInput">Date Acquired</label>
+          <input type="date" id="bookAcquiredDateInput">
+        </div>
+
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label" id="bookWishlistLabel">I own this</div>
+            <div class="toggle-sub">Toggle on if it's on your wishlist instead</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="bookWishlistToggle">
+            <span class="track"><span class="knob"></span></span>
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label>Formats</label>
+          <div class="format-grid" id="bookFormatGrid"></div>
+        </div>
+
+        <div class="form-group">
+          <label for="readStatusSelect">Read Status</label>
+          <select class="field-select" id="readStatusSelect">
+            <option value="">Not set</option>
+            <option value="unread">Unread</option>
+            <option value="reading">Reading</option>
+            <option value="read">Read</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Your rating</label>
+          <div class="star-picker" id="bookStarPicker"></div>
+        </div>
+
+        <div class="form-group">
+          <label for="genreInput">Genre</label>
+          <div class="pill-input-wrap" id="genreWrap">
+            <input type="text" id="genreInput" placeholder="type & press enter…" list="genreSuggestions">
+          </div>
+          <datalist id="genreSuggestions"></datalist>
+        </div>
+
+        <div class="form-group">
+          <label for="seriesInput">Series</label>
+          <div class="pill-input-wrap" id="seriesWrap">
+            <input type="text" id="seriesInput" placeholder="e.g. Harry Potter…" list="seriesSuggestions">
+          </div>
+          <datalist id="seriesSuggestions"></datalist>
+        </div>
+
+        <div class="form-group">
+          <label for="bookNotesInput">Notes</label>
+          <textarea id="bookNotesInput" placeholder="e.g. Signed copy from author's tour stop"></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="bookCancelBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="bookSaveBtn">Save</button>
+        </div>
+        <button type="button" class="btn-danger-outline" id="bookDeleteBtn" style="display:none;">Delete this entry</button>
+      </form>
+    </div>
+  </div>
+
   <!-- Colors -->
   <div class="modal-overlay" id="colorsOverlay">
     <div class="modal-panel">
@@ -788,6 +953,36 @@
         <button class="icon-btn" id="closeStatsBtn" aria-label="Close">✕</button>
       </div>
       <div id="statsContent"></div>
+    </div>
+  </div>
+
+  <!-- Movie detail -->
+  <div class="modal-overlay" id="detailOverlay">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <div class="modal-title" id="detailTitle">&nbsp;</div>
+        <button class="icon-btn" id="closeDetailBtn" aria-label="Close">✕</button>
+      </div>
+      <div id="detailContent"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="detailCloseBtn">Close</button>
+        <button type="button" class="btn btn-primary" id="detailEditBtn">✎ Edit</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Book detail -->
+  <div class="modal-overlay" id="bookDetailOverlay">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <div class="modal-title" id="bookDetailTitle">&nbsp;</div>
+        <button class="icon-btn" id="closeBookDetailBtn" aria-label="Close">✕</button>
+      </div>
+      <div id="bookDetailContent"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="bookDetailCloseBtn">Close</button>
+        <button type="button" class="btn btn-primary" id="bookDetailEditBtn">✎ Edit</button>
+      </div>
     </div>
   </div>
 
@@ -819,15 +1014,33 @@
     appId: "1:1069970359840:web:46e525a06c32df689ede45"
   };
   const OWNER_UID = 'Oc0mT4dpfaP3gI1C4EvXRPY7vYR2'; // only this account may sign in (also enforced server-side in Firestore rules)
-  let fbAuth = null, fbDb = null, fbUser = null, unsubMovies = null;
+  let fbAuth = null, fbDb = null, fbUser = null, unsubMovies = null, unsubBooks = null;
   const cloudOn = () => !!fbUser && !!fbDb;
   const FORMAT_TYPES = ['4K UHD','Blu-ray','DVD','Digital'];
   const FORMAT_CLASS = {'4K UHD':'fmt-4k','Blu-ray':'fmt-bluray','DVD':'fmt-dvd','Digital':'fmt-digital'};
   const FORMAT_COLOR_VAR = {'4K UHD':'var(--c-4k)','Blu-ray':'var(--c-bluray)','DVD':'var(--c-dvd)','Digital':'var(--c-digital)'};
+  const BOOK_FORMAT_TYPES = ['Hardcover','Paperback','Ebook','Audiobook'];
+  const BOOK_FORMAT_CLASS = {'Hardcover':'fmt-hardcover','Paperback':'fmt-paperback','Ebook':'fmt-ebook','Audiobook':'fmt-audiobook'};
+  const BOOK_FORMAT_COLOR_VAR = {'Hardcover':'var(--c-hardcover)','Paperback':'var(--c-paperback)','Ebook':'var(--c-ebook)','Audiobook':'var(--c-audiobook)'};
+  const READ_STATUS_LABEL = {'unread':'Unread','reading':'Reading','read':'Read'};
 
   let movies = [];
+  let books = [];
+  let currentMode = 'movies'; // 'movies' | 'books'
   let filterMode = 'all';
   let activeFormatFilters = new Set();
+  let activeBookFormatFilters = new Set();
+  let activeReadStatusFilters = new Set();
+  let activeBookCollection = '';
+  let editingBookId = null;
+  let formBookFormats = {};
+  let formBookRating = 0;
+  let formBookTags = [];      // genre
+  let formBookCollections = []; // series
+  let formBookPosterData = '';
+  let formBookPosterUrl = '';
+  let formBookPublicRating = null;
+  let formBookPublicRatingCount = null;
   let activeRatingFilters = new Set();
   const RATING_ORDER = ['G','PG','PG-13','R','NC-17','NR','Not Rated','Unrated'];
   let searchQuery = '';
@@ -840,6 +1053,7 @@
   let formPosterData = '';
   let formPosterUrl = '';
   let pendingUpc = '';
+  let pendingIsbn = '';
   let formRuntime = null, formImdbRating = null, formTmdbRating = null, formImdbId = '';
   let formContentRating = '';
   const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -851,7 +1065,8 @@
     selectEl.innerHTML = '<option value="">—</option>' + opts.map(o=>`<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('');
     selectEl.value = current || '';
   }
-  let viewMode = localStorage.getItem('view-mode') || 'grid';
+  let viewMode = 'grid';
+  try{ viewMode = localStorage.getItem('view-mode') || 'grid'; }catch(e){}
   let activeCollection = '';
   let pendingConfirm = null;
 
@@ -996,6 +1211,53 @@
     }, ()=> setSyncState('error'));
   }
 
+  // ---------- Books: storage & sync (mirrors the movie functions above) ----------
+  const BOOKS_STORAGE_KEY = 'books-collection';
+  function bookCol(){ return fbDb.collection('users').doc(fbUser.uid).collection('books'); }
+  async function loadBooks(){
+    if(cloudOn()) return;
+    try{
+      const raw = localStorage.getItem(BOOKS_STORAGE_KEY);
+      books = raw ? JSON.parse(raw) : [];
+    }catch(e){
+      books = books || [];
+    }
+    render();
+  }
+  async function saveBooks(silent){
+    try{
+      localStorage.setItem(BOOKS_STORAGE_KEY, JSON.stringify(books));
+      setSyncState('ok');
+      if(!silent) showToast('Saved');
+    }catch(e){
+      setSyncState('error');
+      showToast('Could not save — device storage full?', true);
+    }
+  }
+  async function firstSyncMergeBooks(){
+    try{
+      const snap = await bookCol().get();
+      const cloudIds = new Set(snap.docs.map(d=>d.id));
+      const localRaw = localStorage.getItem(BOOKS_STORAGE_KEY);
+      const local = localRaw ? JSON.parse(localRaw) : [];
+      const toUpload = local.filter(b=>b && b.id && !cloudIds.has(b.id));
+      for(let i=0; i<toUpload.length; i+=450){
+        const batch = fbDb.batch();
+        toUpload.slice(i, i+450).forEach(b=> batch.set(bookCol().doc(b.id), b));
+        await batch.commit();
+      }
+    }catch(e){
+      setSyncState('error');
+    }
+  }
+  function subscribeBooks(){
+    unsubBooks = bookCol().onSnapshot(snap=>{
+      books = snap.docs.map(d=>d.data());
+      try{ localStorage.setItem(BOOKS_STORAGE_KEY, JSON.stringify(books)); }catch(e){}
+      render();
+    }, ()=> setSyncState('error'));
+  }
+
   function updateAuthUI(){
     const b = $('authBtn');
     if(!FIREBASE_CONFIG){ b.style.display = 'none'; return; }
@@ -1024,10 +1286,29 @@
     movies.forEach(m => (m.collections||[]).forEach(c => s.add(c)));
     return [...s].sort();
   }
+  function allGenres(){
+    const s = new Set();
+    books.forEach(b => (b.tags||[]).forEach(t => s.add(t)));
+    return [...s].sort();
+  }
+  function allSeries(){
+    const s = new Set();
+    books.forEach(b => (b.collections||[]).forEach(c => s.add(c)));
+    return [...s].sort();
+  }
   function totalSpent(){
     return movies.reduce((sum,m)=>{
       if(m.wishlist) return sum;
       return sum + (m.formats||[]).reduce((s,f)=> s + (parseFloat(f.price)||0), 0);
+    },0);
+  }
+  function bookPriceOf(b){
+    return (b.formats||[]).reduce((s,f)=> s + (parseFloat(f.price)||0), 0);
+  }
+  function totalBookSpent(){
+    return books.reduce((sum,b)=>{
+      if(b.wishlist) return sum;
+      return sum + bookPriceOf(b);
     },0);
   }
 
@@ -1053,7 +1334,28 @@
     return h > 0 ? h + 'h ' + (m ? m + 'm' : '') : m + 'm';
   }
 
+  function renderBookStats(){
+    const owned = books.filter(b=>!b.wishlist);
+    const wish = books.filter(b=>b.wishlist).length;
+    const spent = totalBookSpent();
+    const fmtCount = t => owned.filter(b=>(b.formats||[]).some(f=>f.type===t)).length;
+    const rated = owned.filter(b=> b.publicRating);
+    const avg = rated.length ? (rated.reduce((s,b)=> s + b.publicRating, 0) / rated.length).toFixed(1) : null;
+    let html = `
+      <div class="stat-pill"><span class="num">${owned.length}</span><span class="label">Owned</span></div>
+      <div class="stat-pill"><span class="num">${wish}</span><span class="label">Wishlist</span></div>
+      <div class="stat-pill"><span class="num">$${spent.toFixed(0)}</span><span class="label">Spent</span></div>
+      <div class="stat-pill"><span class="num">${fmtCount('Hardcover')}</span><span class="label">Hardcover</span></div>
+      <div class="stat-pill"><span class="num">${fmtCount('Paperback')}</span><span class="label">Paperback</span></div>
+      <div class="stat-pill"><span class="num">${fmtCount('Ebook')}</span><span class="label">Ebook</span></div>
+      <div class="stat-pill"><span class="num">${fmtCount('Audiobook')}</span><span class="label">Audiobook</span></div>`;
+    if(avg) html += `
+      <div class="stat-pill"><span class="num">★${avg}</span><span class="label">Avg rating</span></div>`;
+    $('statsStrip').innerHTML = html;
+  }
+
   function renderStats(){
+    if(currentMode === 'books'){ renderBookStats(); return; }
     const owned = movies.filter(m=>!m.wishlist);
     const wish = movies.filter(m=>m.wishlist).length;
     const spent = totalSpent();
@@ -1111,6 +1413,40 @@
     return (m.formats||[]).reduce((s,f)=> s + (parseFloat(f.price)||0), 0);
   }
 
+  function getFilteredBooks(){
+    let list = books.slice();
+    if(filterMode === 'owned') list = list.filter(b=>!b.wishlist);
+    if(filterMode === 'wishlist') list = list.filter(b=>b.wishlist);
+    if(activeBookFormatFilters.size){
+      list = list.filter(b => (b.formats||[]).some(f => activeBookFormatFilters.has(f.type)));
+    }
+    if(activeReadStatusFilters.size){
+      list = list.filter(b => activeReadStatusFilters.has(b.readStatus));
+    }
+    if(activeBookCollection){
+      list = list.filter(b => (b.collections||[]).includes(activeBookCollection));
+    }
+    if(searchQuery.trim()){
+      const q = searchQuery.trim().toLowerCase();
+      list = list.filter(b =>
+        (b.title||'').toLowerCase().includes(q) ||
+        (b.author||'').toLowerCase().includes(q) ||
+        (b.isbn||'').toLowerCase().includes(q) ||
+        (b.tags||[]).some(t=>t.toLowerCase().includes(q)) ||
+        (b.collections||[]).some(c=>c.toLowerCase().includes(q))
+      );
+    }
+    switch(sortBy){
+      case 'title': list.sort((a,b)=>(a.title||'').localeCompare(b.title||'')); break;
+      case 'year-new': list.sort((a,b)=> (b.publishYear||0) - (a.publishYear||0)); break;
+      case 'year-old': list.sort((a,b)=> (a.publishYear||9999) - (b.publishYear||9999)); break;
+      case 'price-high': list.sort((a,b)=> bookPriceOf(b) - bookPriceOf(a)); break;
+      case 'rating': list.sort((a,b)=> (b.rating||0) - (a.rating||0)); break;
+      default: list.sort((a,b)=> (b.dateAdded||0) - (a.dateAdded||0));
+    }
+    return list;
+  }
+
   // ---------- Stats dashboard aggregates ----------
   function upgradeTotal(){
     const targets = movies.filter(m=> m.upgradePrice && !(m.formats||[]).some(f=>f.type==='4K UHD'));
@@ -1150,6 +1486,7 @@
   }
 
   function renderMovies(){
+    if(currentMode === 'books'){ renderBooksGrid(); return; }
     const grid = $('movieGrid');
     const list = getFiltered();
     if(movies.length === 0){
@@ -1163,7 +1500,7 @@
     grid.style.display = ''; // layout comes from .movie-grid / .list-mode classes
     grid.innerHTML = list.map(m => cardHtml(m)).join('');
     grid.querySelectorAll('.movie-card').forEach(card=>{
-      card.addEventListener('click', ()=> openEditModal(card.dataset.id));
+      card.addEventListener('click', ()=> openDetailModal(card.dataset.id));
     });
     grid.querySelectorAll('img.poster').forEach(img=>{
       img.addEventListener('error', ()=>{
@@ -1179,10 +1516,15 @@
     const grid = $('movieGrid');
     if(kind === 'shelf'){
       grid.style.display='block';
-      grid.innerHTML = `<div class="empty-state">
-        <div class="em-title">Your shelf is empty</div>
-        <p>Tap the + button to log your first disc — physical media, digital copies, or something on your wishlist.</p>
-      </div>`;
+      grid.innerHTML = currentMode === 'books'
+        ? `<div class="empty-state">
+            <div class="em-title">Your shelf is empty</div>
+            <p>Tap the + button to log your first book — owned copies or something on your wishlist.</p>
+          </div>`
+        : `<div class="empty-state">
+            <div class="em-title">Your shelf is empty</div>
+            <p>Tap the + button to log your first disc — physical media, digital copies, or something on your wishlist.</p>
+          </div>`;
     } else {
       grid.style.display='block';
       grid.innerHTML = `<div class="empty-state">
@@ -1236,7 +1578,91 @@
       </div>`;
   }
 
+  function bookScoreRow(b){
+    if(!b.publicRating) return '';
+    const pct = Math.max(0, Math.min(100, b.publicRating * 20)); // Open Library rates out of 5, not 10
+    return `<div class="score-block"><div class="score-row">
+      <span class="score-src">Rating</span>
+      <span class="score-stars">★★★★★<span class="score-stars-fill" style="width:${pct}%">★★★★★</span></span>
+      <span class="score-num">${b.publicRating.toFixed(1)}</span>
+    </div></div>`;
+  }
+
+  function bookCardHtml(b){
+    const formats = b.formats || [];
+    const badges = formats.map(f => `<span class="badge ${BOOK_FORMAT_CLASS[f.type]}">${escapeHtml(f.type)}</span>`).join('');
+    const stars = [1,2,3,4,5].map(i => `<span class="star-static ${i<=(b.rating||0)?'filled':''}">★</span>`).join('');
+    const price = bookPriceOf(b);
+    const tags = (b.tags||[]).slice(0,2).map(t=>`<span class="tag-pill-mini" style="${tagStyle(t)}">${escapeHtml(t)}</span>`).join('');
+    const letter = (b.title||'?').charAt(0).toUpperCase();
+    const posterSrc = b.posterData || b.posterUrl || '';
+    const posterBlock = posterSrc
+      ? `<img class="poster" src="${escapeHtml(posterSrc)}" alt="" data-letter="${escapeHtml(letter)}">`
+      : `<div class="poster-placeholder">${escapeHtml(letter)}</div>`;
+    const readBadge = b.readStatus ? `<span class="rating-badge">${escapeHtml(READ_STATUS_LABEL[b.readStatus]||b.readStatus)}</span>` : '';
+    return `
+      <div class="movie-card" data-id="${b.id}">
+        <div class="card-hole"></div>
+        ${b.wishlist ? '<div class="wishlist-ribbon">WISHLIST</div>' : ''}
+        ${posterBlock}
+        <div class="card-body">
+          <div>
+            <div class="card-title">${escapeHtml(b.title)}</div>
+            ${b.author ? `<div class="card-year">${escapeHtml(b.author)}</div>` : ''}
+            <div class="card-year-row">
+              <div class="card-year">${[
+                b.publishYear || '',
+                b.pageCount ? b.pageCount + ' pages' : null
+              ].filter(Boolean).join(' · ')}</div>
+              ${readBadge}
+            </div>
+            ${bookScoreRow(b)}
+          </div>
+          <div class="badges">${badges}</div>
+          ${b.rating ? `<div class="stars-row">${stars}</div>` : ''}
+          <div class="card-footer">
+            <span class="price-tag">${(!b.wishlist && price>0) ? '$'+price.toFixed(2) : ''}</span>
+            <span style="display:flex; gap:4px;">${tags}</span>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderBooksGrid(){
+    const grid = $('movieGrid');
+    const list = getFilteredBooks();
+    if(books.length === 0){
+      showEmptyState('shelf');
+      return;
+    }
+    if(list.length === 0){
+      showEmptyState('filter');
+      return;
+    }
+    grid.style.display = '';
+    grid.innerHTML = list.map(b => bookCardHtml(b)).join('');
+    grid.querySelectorAll('.movie-card').forEach(card=>{
+      card.addEventListener('click', ()=> openBookDetailModal(card.dataset.id));
+    });
+    grid.querySelectorAll('img.poster').forEach(img=>{
+      img.addEventListener('error', ()=>{
+        const ph = document.createElement('div');
+        ph.className = 'poster-placeholder';
+        ph.textContent = img.dataset.letter || '?';
+        img.replaceWith(ph);
+      });
+    });
+  }
+
   function renderCollectionChips(){
+    if(currentMode === 'books'){
+      const series = allSeries();
+      if(activeBookCollection && !series.includes(activeBookCollection)) activeBookCollection = '';
+      $('collectionChips').innerHTML = series.map(c=>
+        `<button class="chip coll ${c === activeBookCollection ? 'active' : ''}" style="${collectionStyle(c)}" data-coll="${escapeHtml(c)}">${escapeHtml(c)}</button>`
+      ).join('');
+      return;
+    }
     const cols = allCollections();
     if(activeCollection && !cols.includes(activeCollection)) activeCollection = '';
     $('collectionChips').innerHTML = cols.map(c=>
@@ -1245,7 +1671,11 @@
   }
   $('collectionChips').addEventListener('click', e=>{
     const btn = e.target.closest('button'); if(!btn) return;
-    activeCollection = (activeCollection === btn.dataset.coll) ? '' : btn.dataset.coll;
+    if(currentMode === 'books'){
+      activeBookCollection = (activeBookCollection === btn.dataset.coll) ? '' : btn.dataset.coll;
+    } else {
+      activeCollection = (activeCollection === btn.dataset.coll) ? '' : btn.dataset.coll;
+    }
     renderCollectionChips();
     renderMovies();
   });
@@ -1279,7 +1709,7 @@
   function render(){
     renderStats();
     renderCollectionChips();
-    renderRatingChips();
+    if(currentMode !== 'books') renderRatingChips();
     renderMovies();
     updateSuggestionLists();
   }
@@ -1287,6 +1717,8 @@
   function updateSuggestionLists(){
     $('tagSuggestions').innerHTML = allTags().map(t=>`<option value="${escapeHtml(t)}">`).join('');
     $('collectionSuggestions').innerHTML = allCollections().map(c=>`<option value="${escapeHtml(c)}">`).join('');
+    $('genreSuggestions').innerHTML = allGenres().map(t=>`<option value="${escapeHtml(t)}">`).join('');
+    $('seriesSuggestions').innerHTML = allSeries().map(c=>`<option value="${escapeHtml(c)}">`).join('');
   }
 
   // ---------- Filters / search / sort ----------
@@ -1304,6 +1736,20 @@
     else { activeFormatFilters.add(fmt); btn.classList.add('active'); }
     renderMovies();
   });
+  $('bookFormatChips').addEventListener('click', e=>{
+    const btn = e.target.closest('button'); if(!btn) return;
+    const fmt = btn.dataset.bfmt;
+    if(activeBookFormatFilters.has(fmt)){ activeBookFormatFilters.delete(fmt); btn.classList.remove('active'); }
+    else { activeBookFormatFilters.add(fmt); btn.classList.add('active'); }
+    renderMovies();
+  });
+  $('readStatusChips').addEventListener('click', e=>{
+    const btn = e.target.closest('button'); if(!btn) return;
+    const st = btn.dataset.rstat;
+    if(activeReadStatusFilters.has(st)){ activeReadStatusFilters.delete(st); btn.classList.remove('active'); }
+    else { activeReadStatusFilters.add(st); btn.classList.add('active'); }
+    renderMovies();
+  });
   $('sortSelect').addEventListener('change', e=>{ sortBy = e.target.value; renderMovies(); });
 
   function applyViewMode(){
@@ -1317,6 +1763,33 @@
     applyViewMode();
   });
   applyViewMode();
+
+  // ---------- Mode toggle (Movies / Books) ----------
+  function switchMode(mode){
+    if(mode === currentMode) return;
+    currentMode = mode;
+    $('modeToggle').querySelectorAll('.mode-btn').forEach(b=> b.classList.toggle('active', b.dataset.appmode === mode));
+    const isBooks = mode === 'books';
+    $('formatChips').style.display = isBooks ? 'none' : '';
+    $('ratingChips').style.display = isBooks ? 'none' : '';
+    $('bookFormatChips').style.display = isBooks ? '' : 'none';
+    $('readStatusChips').style.display = isBooks ? '' : 'none';
+    $('tmdbKeyBtn').style.display = isBooks ? 'none' : '';
+    $('omdbKeyBtn').style.display = isBooks ? 'none' : '';
+    $('searchInput').placeholder = isBooks ? 'Search title, author, genre, series…' : 'Search title, tag, or collection…';
+    searchQuery = '';
+    $('searchInput').value = '';
+    activeFormatFilters.clear();
+    activeRatingFilters.clear();
+    activeBookFormatFilters.clear();
+    activeReadStatusFilters.clear();
+    document.querySelectorAll('#formatChips .chip, #bookFormatChips .chip, #readStatusChips .chip').forEach(b=>b.classList.remove('active'));
+    render();
+  }
+  $('modeToggle').addEventListener('click', e=>{
+    const btn = e.target.closest('.mode-btn'); if(!btn) return;
+    switchMode(btn.dataset.appmode);
+  });
 
   // ---------- Movie lookup (TMDB — free API key, stored only on this device) ----------
   const TMDB_GENRES = {28:'action',12:'adventure',16:'animation',35:'comedy',80:'crime',99:'documentary',18:'drama',10751:'family',14:'fantasy',36:'history',27:'horror',10402:'music',9648:'mystery',10749:'romance',878:'sci-fi',10770:'tv movie',53:'thriller',10752:'war',37:'western'};
@@ -1374,6 +1847,18 @@
     }catch(e){}
   }
 
+  function checkBookDuplicate(title){
+    const w = $('bookDupeWarn');
+    const t = (title || '').trim().toLowerCase();
+    const dupe = t ? books.find(b => b.id !== editingBookId && (b.title || '').trim().toLowerCase() === t) : null;
+    if(dupe){
+      const fmts = (dupe.formats || []).map(f=>f.type).join(', ');
+      w.textContent = (dupe.wishlist ? '♥ Already on your wishlist' : '✓ Already in your collection') + (fmts ? ' (' + fmts + ')' : '');
+      w.classList.add('show');
+    } else {
+      w.classList.remove('show');
+    }
+  }
   function checkDuplicate(title){
     const w = $('dupeWarn');
     const t = (title || '').trim().toLowerCase();
@@ -1452,6 +1937,78 @@
   }
   document.addEventListener('click', e=>{ if(!e.target.closest('.lookup-wrap')) hideLookup(); });
 
+  // ---------- Book lookup (Open Library — free, no key) ----------
+  function cleanSubjects(subjects){
+    return (subjects||[]).filter(s => s && s.length < 30 && !/[:=\d]/.test(s)).slice(0,3);
+  }
+  let bookLookupTimer = null;
+  let bookLookupSeq = 0;
+  function hideBookLookup(){
+    $('bookLookupResults').classList.remove('open');
+    $('bookLookupResults').innerHTML = '';
+  }
+  $('bookTitleInput').addEventListener('input', ()=>{
+    const q = $('bookTitleInput').value.trim();
+    checkBookDuplicate(q);
+    clearTimeout(bookLookupTimer);
+    if(q.length < 3){ hideBookLookup(); return; }
+    bookLookupTimer = setTimeout(()=> runBookLookup(q), 450);
+  });
+  async function runBookLookup(q){
+    const seq = ++bookLookupSeq;
+    const box = $('bookLookupResults');
+    try{
+      const url = 'https://openlibrary.org/search.json?q=' + encodeURIComponent(q)
+        + '&limit=6&fields=title,author_name,first_publish_year,isbn,cover_i,number_of_pages_median,ratings_average,ratings_count,subject';
+      const res = await fetch(url);
+      const data = await res.json();
+      if(seq !== bookLookupSeq) return;
+      const results = (data.docs || []).slice(0,6).map(d=>({
+        title: d.title,
+        author: (d.author_name||[])[0] || '',
+        year: d.first_publish_year || null,
+        isbn13: (d.isbn||[]).find(i=>i.length===13) || (d.isbn||[])[0] || '',
+        pages: d.number_of_pages_median || null,
+        rating: (typeof d.ratings_average === 'number') ? d.ratings_average : null,
+        ratingCount: d.ratings_count || null,
+        genres: cleanSubjects(d.subject),
+        thumb: d.cover_i ? 'https://covers.openlibrary.org/b/id/' + d.cover_i + '-S.jpg' : '',
+        poster: d.cover_i ? 'https://covers.openlibrary.org/b/id/' + d.cover_i + '-L.jpg' : ''
+      })).filter(r=>r.title);
+      if(!results.length){ hideBookLookup(); return; }
+      box.innerHTML = results.map((r,i)=>`
+        <button type="button" class="lookup-item" data-i="${i}">
+          ${r.thumb ? `<img src="${escapeHtml(r.thumb)}" alt="" loading="lazy">` : ''}
+          <span>${escapeHtml(r.title)}${r.author ? ' — ' + escapeHtml(r.author) : ''} <span class="li-year">${r.year || ''}</span></span>
+        </button>`).join('');
+      box.classList.add('open');
+      box.querySelectorAll('.lookup-item').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const r = results[parseInt(btn.dataset.i)];
+          $('bookTitleInput').value = r.title;
+          checkBookDuplicate(r.title);
+          $('authorInput').value = r.author;
+          if(r.year) $('publishYearInput').value = r.year;
+          if(r.pages) $('pageCountInput').value = r.pages;
+          if(r.isbn13) $('isbnInput').value = r.isbn13;
+          if(r.poster){ formBookPosterUrl = r.poster; updateBookPosterPreview(); }
+          formBookPublicRating = r.rating;
+          formBookPublicRatingCount = r.ratingCount;
+          let added = false;
+          r.genres.forEach(g=>{
+            const gl = g.toLowerCase();
+            if(!formBookTags.includes(gl)){ formBookTags.push(gl); added = true; }
+          });
+          if(added) buildPills('genreWrap', formBookTags, 'genreInput');
+          hideBookLookup();
+        });
+      });
+    }catch(e){
+      if(seq === bookLookupSeq) hideBookLookup();
+    }
+  }
+  document.addEventListener('click', e=>{ if(!e.target.closest('#bookModalOverlay .lookup-wrap')) hideBookLookup(); });
+
   // ---------- Barcode scanning ----------
   let scanStream = null, scanTimer = null, scanReady = false;
   const normUpc = c => String(c || '').replace(/^0+/, '');
@@ -1483,7 +2040,7 @@
             if(navigator.vibrate) navigator.vibrate(80);
             const code = codes[0].rawValue;
             closeScanner();
-            handleScan(code);
+            if(currentMode === 'books') handleBookScan(code); else handleScan(code);
             return;
           }
         }catch(e){}
@@ -1544,6 +2101,46 @@
     }
   }
 
+  async function handleBookScan(code){
+    const isbn = normUpc(code);
+    const owned = books.find(b => b.isbn && normUpc(b.isbn) === isbn);
+    if(owned){
+      showToast((owned.wishlist ? '♥ On your wishlist: ' : '✓ You own this: ') + owned.title);
+      openBookEditModal(owned.id);
+      return;
+    }
+    showToast('Looking up ISBN…');
+    openAddBookModal();
+    pendingIsbn = code;
+    $('isbnInput').value = code;
+    try{
+      const res = await fetch('https://openlibrary.org/search.json?q=isbn:' + encodeURIComponent(code)
+        + '&limit=1&fields=title,author_name,first_publish_year,isbn,cover_i,number_of_pages_median,ratings_average,ratings_count,subject');
+      const data = await res.json();
+      const d = (data.docs || [])[0];
+      if(d){
+        $('bookTitleInput').value = d.title || '';
+        checkBookDuplicate(d.title || '');
+        $('authorInput').value = (d.author_name||[])[0] || '';
+        if(d.first_publish_year) $('publishYearInput').value = d.first_publish_year;
+        if(d.number_of_pages_median) $('pageCountInput').value = d.number_of_pages_median;
+        if(d.cover_i){ formBookPosterUrl = 'https://covers.openlibrary.org/b/id/' + d.cover_i + '-L.jpg'; updateBookPosterPreview(); }
+        formBookPublicRating = (typeof d.ratings_average === 'number') ? d.ratings_average : null;
+        formBookPublicRatingCount = d.ratings_count || null;
+        let added = false;
+        cleanSubjects(d.subject).forEach(g=>{
+          const gl = g.toLowerCase();
+          if(!formBookTags.includes(gl)){ formBookTags.push(gl); added = true; }
+        });
+        if(added) buildPills('genreWrap', formBookTags, 'genreInput');
+      } else {
+        showToast('Not in the ISBN database — type the title', true);
+      }
+    }catch(e){
+      showToast('Not in the ISBN database — type the title', true);
+    }
+  }
+
   $('scanFab').addEventListener('click', openScanner);
   $('scanCloseBtn').addEventListener('click', closeScanner);
 
@@ -1594,12 +2191,12 @@
       const pill = document.createElement('span');
       pill.className = 'pill';
       pill.innerHTML = `${escapeHtml(val)} <button type="button" aria-label="Remove">✕</button>`;
-      if(wrapId === 'tagsWrap' && tagColors[val]){
+      if((wrapId === 'tagsWrap' || wrapId === 'genreWrap') && tagColors[val]){
         pill.style.background = tagColors[val];
         pill.style.color = contrastText(tagColors[val]);
         pill.style.borderColor = tagColors[val];
       }
-      if(wrapId === 'collectionsWrap' && collectionColors[val]){
+      if((wrapId === 'collectionsWrap' || wrapId === 'seriesWrap') && collectionColors[val]){
         pill.style.background = collectionColors[val];
         pill.style.color = contrastText(collectionColors[val]);
         pill.style.borderColor = collectionColors[val];
@@ -1755,7 +2352,6 @@
 
   function closeModal(){ $('modalOverlay').classList.remove('open'); }
 
-  $('fabAdd').addEventListener('click', openAddModal);
   $('closeModalBtn').addEventListener('click', closeModal);
   $('cancelBtn').addEventListener('click', closeModal);
   $('modalOverlay').addEventListener('click', e=>{ if(e.target === $('modalOverlay')) closeModal(); });
@@ -1830,6 +2426,230 @@
     });
   });
 
+  // ---------- Book modal: build helpers ----------
+  function buildBookFormatGrid(){
+    $('bookFormatGrid').innerHTML = BOOK_FORMAT_TYPES.map(type=>{
+      const on = formBookFormats.hasOwnProperty(type);
+      const price = on ? formBookFormats[type] : '';
+      return `
+        <div class="format-option ${on?'on':''}" data-type="${type}">
+          <label class="format-toggle">
+            <input type="checkbox" ${on?'checked':''} data-bfmt-toggle="${type}"> ${type}
+          </label>
+          <div class="format-price"><input type="number" step="0.01" min="0" placeholder="Price paid" value="${price}" data-bfmt-price="${type}"></div>
+        </div>`;
+    }).join('');
+    $('bookFormatGrid').querySelectorAll('[data-bfmt-toggle]').forEach(cb=>{
+      cb.addEventListener('change', e=>{
+        const type = e.target.dataset.bfmtToggle;
+        if(e.target.checked) formBookFormats[type] = formBookFormats[type] || '';
+        else delete formBookFormats[type];
+        buildBookFormatGrid();
+      });
+    });
+    $('bookFormatGrid').querySelectorAll('[data-bfmt-price]').forEach(inp=>{
+      inp.addEventListener('input', e=>{
+        formBookFormats[e.target.dataset.bfmtPrice] = e.target.value;
+      });
+    });
+  }
+
+  function buildBookStarPicker(){
+    $('bookStarPicker').innerHTML = [1,2,3,4,5].map(i=>
+      `<button type="button" class="${i<=formBookRating?'filled':''}" data-star="${i}">★</button>`
+    ).join('') + `<button type="button" class="clear-rating" id="clearBookRatingBtn">clear</button>`;
+    $('bookStarPicker').querySelectorAll('[data-star]').forEach(b=>{
+      b.addEventListener('click', ()=>{ formBookRating = parseInt(b.dataset.star); buildBookStarPicker(); });
+    });
+    $('clearBookRatingBtn').addEventListener('click', ()=>{ formBookRating = 0; buildBookStarPicker(); });
+  }
+
+  setupPillInput('genreInput', formBookTags, 'genreWrap');
+  setupPillInput('seriesInput', formBookCollections, 'seriesWrap');
+
+  // ---------- Book cover picker (mirrors the movie poster picker) ----------
+  function updateBookPosterPreview(){
+    const prev = $('bookPosterPreview'), pick = $('bookPosterPickBtn'), rem = $('bookPosterRemoveBtn');
+    const src = formBookPosterData || formBookPosterUrl;
+    if(src){
+      prev.src = src; prev.style.display = 'block';
+      rem.style.display = 'inline-block';
+      pick.textContent = 'Change';
+    } else {
+      prev.style.display = 'none'; prev.removeAttribute('src');
+      rem.style.display = 'none';
+      pick.textContent = '＋ Add image';
+    }
+  }
+  $('bookPosterPickBtn').addEventListener('click', ()=> $('bookPosterFile').click());
+  $('bookPosterRemoveBtn').addEventListener('click', ()=>{ formBookPosterData = ''; formBookPosterUrl = ''; updateBookPosterPreview(); });
+  $('bookPosterFile').addEventListener('change', e=>{
+    const file = e.target.files[0];
+    e.target.value = '';
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ev=>{
+      const img = new Image();
+      img.onload = ()=>{
+        const scale = Math.min(1, POSTER_MAX_W / img.width);
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        formBookPosterData = canvas.toDataURL('image/jpeg', 0.72);
+        updateBookPosterPreview();
+      };
+      img.onerror = ()=> showToast('Could not read that image', true);
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  function resetBookForm(){
+    editingBookId = null;
+    formBookFormats = {};
+    formBookRating = 0;
+    formBookTags.length = 0;
+    formBookCollections.length = 0;
+    $('bookForm').reset();
+    $('bookTitleInput').value = '';
+    $('authorInput').value = '';
+    $('publishYearInput').value = '';
+    $('pageCountInput').value = '';
+    $('isbnInput').value = '';
+    formBookPosterData = '';
+    formBookPosterUrl = '';
+    formBookPublicRating = null;
+    formBookPublicRatingCount = null;
+    pendingIsbn = '';
+    checkBookDuplicate('');
+    updateBookPosterPreview();
+    $('bookAcquiredDateInput').value = new Date().toISOString().slice(0,10);
+    $('bookWishlistToggle').checked = false;
+    $('bookWishlistLabel').textContent = 'I own this';
+    $('readStatusSelect').value = '';
+    $('bookNotesInput').value = '';
+    buildBookFormatGrid();
+    buildBookStarPicker();
+    buildPills('genreWrap', formBookTags, 'genreInput');
+    buildPills('seriesWrap', formBookCollections, 'seriesInput');
+    $('bookDeleteBtn').style.display = 'none';
+    $('bookModalTitle').textContent = 'Add Book';
+  }
+
+  function openAddBookModal(){
+    resetBookForm();
+    $('bookModalOverlay').classList.add('open');
+    setTimeout(()=> $('bookTitleInput').focus(), 50);
+  }
+
+  function openBookEditModal(id){
+    const b = books.find(x=>x.id===id);
+    if(!b) return;
+    resetBookForm();
+    editingBookId = id;
+    $('bookModalTitle').textContent = 'Edit Book';
+    $('bookTitleInput').value = b.title || '';
+    $('authorInput').value = b.author || '';
+    $('publishYearInput').value = b.publishYear || '';
+    $('pageCountInput').value = b.pageCount || '';
+    $('isbnInput').value = b.isbn || '';
+    formBookPosterData = b.posterData || '';
+    formBookPosterUrl = b.posterUrl || '';
+    formBookPublicRating = b.publicRating || null;
+    formBookPublicRatingCount = b.publicRatingCount || null;
+    checkBookDuplicate(b.title);
+    updateBookPosterPreview();
+    $('bookAcquiredDateInput').value = b.acquiredDate || '';
+    $('bookWishlistToggle').checked = !!b.wishlist;
+    $('bookWishlistLabel').textContent = b.wishlist ? 'On my wishlist' : 'I own this';
+    $('readStatusSelect').value = b.readStatus || '';
+    $('bookNotesInput').value = b.notes || '';
+    formBookFormats = {};
+    (b.formats||[]).forEach(f=> formBookFormats[f.type] = f.price || '');
+    formBookRating = b.rating || 0;
+    formBookTags.length = 0;
+    (b.tags||[]).forEach(t=> formBookTags.push(t));
+    formBookCollections.length = 0;
+    (b.collections||[]).forEach(c=> formBookCollections.push(c));
+    buildBookFormatGrid();
+    buildBookStarPicker();
+    buildPills('genreWrap', formBookTags, 'genreInput');
+    buildPills('seriesWrap', formBookCollections, 'seriesInput');
+    $('bookDeleteBtn').style.display = 'block';
+    $('bookModalOverlay').classList.add('open');
+  }
+
+  function closeBookModal(){ $('bookModalOverlay').classList.remove('open'); }
+
+  $('fabAdd').addEventListener('click', ()=> currentMode === 'books' ? openAddBookModal() : openAddModal());
+  $('closeBookModalBtn').addEventListener('click', closeBookModal);
+  $('bookCancelBtn').addEventListener('click', closeBookModal);
+  $('bookModalOverlay').addEventListener('click', e=>{ if(e.target === $('bookModalOverlay')) closeBookModal(); });
+  $('bookWishlistToggle').addEventListener('change', e=>{
+    $('bookWishlistLabel').textContent = e.target.checked ? 'On my wishlist' : 'I own this';
+  });
+
+  $('bookForm').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const title = $('bookTitleInput').value.trim();
+    if(!title){ $('bookTitleInput').focus(); return; }
+    const formats = Object.entries(formBookFormats).map(([type,price])=>({type, price: price===''?0:parseFloat(price)||0}));
+    const existing = editingBookId ? books.find(b=>b.id===editingBookId) : null;
+    const data = {
+      id: editingBookId || uid(),
+      title,
+      author: $('authorInput').value.trim(),
+      isbn: $('isbnInput').value.trim() || (existing ? (existing.isbn || '') : pendingIsbn),
+      posterData: formBookPosterData,
+      posterUrl: formBookPosterUrl,
+      publishYear: $('publishYearInput').value ? parseInt($('publishYearInput').value) : null,
+      pageCount: $('pageCountInput').value ? parseInt($('pageCountInput').value) : null,
+      publicRating: formBookPublicRating,
+      publicRatingCount: formBookPublicRatingCount,
+      readStatus: $('readStatusSelect').value,
+      acquiredDate: $('bookAcquiredDateInput').value,
+      wishlist: $('bookWishlistToggle').checked,
+      formats,
+      rating: formBookRating,
+      tags: formBookTags.slice(),
+      collections: formBookCollections.slice(),
+      notes: $('bookNotesInput').value.trim(),
+      dateAdded: existing ? (existing.dateAdded || Date.now()) : Date.now()
+    };
+    if(cloudOn()){
+      bookCol().doc(data.id).set(data).catch(()=>{ setSyncState('error'); });
+      closeBookModal();
+      showToast('Saved');
+      return;
+    }
+    if(editingBookId){
+      const idx = books.findIndex(b=>b.id===editingBookId);
+      if(idx>-1) books[idx] = data;
+    } else {
+      books.push(data);
+    }
+    closeBookModal();
+    render();
+    await saveBooks();
+  });
+
+  $('bookDeleteBtn').addEventListener('click', ()=>{
+    const delId = editingBookId;
+    askConfirm('Delete this entry?', 'This removes it from your collection permanently.', async ()=>{
+      if(cloudOn()){
+        bookCol().doc(delId).delete().catch(()=> setSyncState('error'));
+        closeBookModal();
+        return;
+      }
+      books = books.filter(b=>b.id!==delId);
+      closeBookModal();
+      render();
+      await saveBooks();
+    });
+  });
+
   // ---------- Confirm dialog ----------
   function askConfirm(title, text, onConfirm){
     $('confirmTitle').textContent = title;
@@ -1853,7 +2673,7 @@
 
   $('exportBtn').addEventListener('click', ()=>{
     $('menuDropdown').classList.remove('open');
-    const blob = new Blob([JSON.stringify(movies, null, 2)], {type:'application/json'});
+    const blob = new Blob([JSON.stringify({movies, books}, null, 2)], {type:'application/json'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = 'spine-backup-' + new Date().toISOString().slice(0,10) + '.json';
@@ -1865,6 +2685,19 @@
     $('menuDropdown').classList.remove('open');
     $('importFile').click();
   });
+  async function importFreshEntries(fresh, arr, col, save){
+    if(!fresh.length) return;
+    if(cloudOn()){
+      for(let i=0; i<fresh.length; i+=450){
+        const batch = fbDb.batch();
+        fresh.slice(i, i+450).forEach(x=> batch.set(col().doc(x.id), x));
+        batch.commit().catch(()=> setSyncState('error'));
+      }
+      return;
+    }
+    fresh.forEach(x=> arr.push(x));
+    await save();
+  }
   $('importFile').addEventListener('change', e=>{
     const file = e.target.files[0];
     if(!file) return;
@@ -1872,21 +2705,18 @@
     reader.onload = async ev=>{
       try{
         const imported = JSON.parse(ev.target.result);
-        if(!Array.isArray(imported)) throw new Error('bad format');
-        askConfirm('Import backup?', `This will add ${imported.length} entries, merging with your current collection.`, async ()=>{
-          const existingIds = new Set(movies.map(m=>m.id));
-          const fresh = imported.filter(m=>m && m.id && !existingIds.has(m.id));
-          if(cloudOn()){
-            for(let i=0; i<fresh.length; i+=450){
-              const batch = fbDb.batch();
-              fresh.slice(i, i+450).forEach(m=> batch.set(userCol().doc(m.id), m));
-              batch.commit().catch(()=> setSyncState('error'));
-            }
-            return;
-          }
-          fresh.forEach(m=> movies.push(m));
-          render();
-          await saveMovies();
+        // backward-compatible: old backups are a bare array of movies; new backups are {movies, books}
+        const impMovies = Array.isArray(imported) ? imported : (Array.isArray(imported.movies) ? imported.movies : []);
+        const impBooks = Array.isArray(imported) ? [] : (Array.isArray(imported.books) ? imported.books : []);
+        if(!impMovies.length && !impBooks.length) throw new Error('bad format');
+        const existingMovieIds = new Set(movies.map(m=>m.id));
+        const existingBookIds = new Set(books.map(b=>b.id));
+        const freshMovies = impMovies.filter(m=>m && m.id && !existingMovieIds.has(m.id));
+        const freshBooks = impBooks.filter(b=>b && b.id && !existingBookIds.has(b.id));
+        askConfirm('Import backup?', `This will add ${freshMovies.length} movie(s) and ${freshBooks.length} book(s), merging with your current collection.`, async ()=>{
+          await importFreshEntries(freshMovies, movies, userCol, saveMovies);
+          await importFreshEntries(freshBooks, books, bookCol, saveBooks);
+          if(!cloudOn()) render();
         });
       }catch(err){
         showToast('Could not read that file', true);
@@ -1982,9 +2812,62 @@
       });
   }
 
+  // ---------- Backfill for books (Open Library — no key needed) ----------
+  function needsBookBackfill(b){
+    return !b.pageCount || !b.publicRating || (!b.posterUrl && !b.posterData);
+  }
+  async function backfillBookOne(b){
+    let changed = false;
+    try{
+      if(needsBookBackfill(b)){
+        const url = 'https://openlibrary.org/search.json?q=' + encodeURIComponent(b.title + (b.author ? ' ' + b.author : ''))
+          + '&limit=1&fields=first_publish_year,isbn,cover_i,number_of_pages_median,ratings_average,ratings_count';
+        const res = await fetch(url);
+        const data = await res.json();
+        const d = (data.docs || [])[0];
+        if(d){
+          if(!b.pageCount && d.number_of_pages_median){ b.pageCount = d.number_of_pages_median; changed = true; }
+          if(!b.publicRating && typeof d.ratings_average === 'number'){ b.publicRating = d.ratings_average; b.publicRatingCount = d.ratings_count || null; changed = true; }
+          if(!b.posterUrl && !b.posterData && d.cover_i){ b.posterUrl = 'https://covers.openlibrary.org/b/id/' + d.cover_i + '-L.jpg'; changed = true; }
+          if(!b.publishYear && d.first_publish_year){ b.publishYear = d.first_publish_year; changed = true; }
+          if(!b.isbn && (d.isbn||[]).length){ b.isbn = (d.isbn||[]).find(i=>i.length===13) || d.isbn[0]; changed = true; }
+        }
+      }
+    }catch(e){}
+    return changed;
+  }
+  async function backfillAllBooks(){
+    const targets = books.filter(needsBookBackfill);
+    if(!targets.length){ showToast('Everything is already filled in'); return; }
+    askConfirm('Backfill missing info?',
+      `This looks up ${targets.length} ${targets.length === 1 ? 'entry' : 'entries'} on Open Library to fill in missing page count, rating, and cover art. Nothing already filled in gets overwritten.`,
+      async ()=>{
+        setSyncState('syncing');
+        const changedList = [];
+        for(let i = 0; i < targets.length; i++){
+          if(await backfillBookOne(targets[i])) changedList.push(targets[i]);
+          if((i + 1) % 5 === 0) showToast('Backfilling… ' + (i + 1) + '/' + targets.length);
+        }
+        if(changedList.length){
+          if(cloudOn()){
+            for(let i = 0; i < changedList.length; i += 450){
+              const batch = fbDb.batch();
+              changedList.slice(i, i + 450).forEach(b=> batch.set(bookCol().doc(b.id), b));
+              batch.commit().catch(()=> setSyncState('error'));
+            }
+          } else {
+            await saveBooks(true);
+          }
+          render();
+        }
+        setSyncState('ok');
+        showToast('Updated ' + changedList.length + ' of ' + targets.length + ' entries');
+      });
+  }
+
   $('backfillBtn').addEventListener('click', ()=>{
     $('menuDropdown').classList.remove('open');
-    backfillAll();
+    if(currentMode === 'books') backfillAllBooks(); else backfillAll();
   });
 
   function colorRowsHtml(group, items, colorOf, emptyMsg, hasOverride){
@@ -2005,11 +2888,13 @@
     }).join('');
   }
   function renderColorsManager(){
+    const allTagValues = [...new Set([...allTags(), ...allGenres()])].sort();
+    const allCollValues = [...new Set([...allCollections(), ...allSeries()])].sort();
     $('colorsList').innerHTML =
       '<div class="color-section-title">Tags</div>' +
-      colorRowsHtml('tag', allTags(), t=>tagColors[t], 'No tags yet — add tags to some movies first.') +
+      colorRowsHtml('tag', allTagValues, t=>tagColors[t], 'No tags yet — add tags/genres to some movies or books first.') +
       '<div class="color-section-title">Collections</div>' +
-      colorRowsHtml('coll', allCollections(), c=>collectionColors[c], 'No collections yet — add a collection to some movies first.') +
+      colorRowsHtml('coll', allCollValues, c=>collectionColors[c], 'No collections yet — add a collection/series to some movies or books first.') +
       '<div class="color-section-title">Badges</div>' +
       colorRowsHtml('badge', QUALITY_BADGES, b=>badgeColor(b), 'No badges.', b=>!!badgeColors[b]);
   }
@@ -2122,11 +3007,192 @@
   }
   $('statsBtn').addEventListener('click', ()=>{
     $('menuDropdown').classList.remove('open');
+    if(currentMode === 'books'){ showToast('Full stats dashboard for books is coming soon — check the stats strip up top for now'); return; }
     renderStatsDashboard();
     $('statsOverlay').classList.add('open');
   });
   $('closeStatsBtn').addEventListener('click', ()=> $('statsOverlay').classList.remove('open'));
   $('statsOverlay').addEventListener('click', e=>{ if(e.target === $('statsOverlay')) $('statsOverlay').classList.remove('open'); });
+
+  // ---------- Movie detail ----------
+  function renderMovieDetail(m){
+    $('detailTitle').textContent = m.title || '';
+    const letter = (m.title||'?').charAt(0).toUpperCase();
+    const posterSrc = m.posterData || m.posterUrl || '';
+    const posterBlock = posterSrc
+      ? `<img class="detail-poster" src="${escapeHtml(posterSrc)}" alt="">`
+      : `<div class="detail-poster-placeholder">${escapeHtml(letter)}</div>`;
+
+    const yearMonth = (m.year && m.releaseMonth) ? (MONTH_NAMES[m.releaseMonth-1] + ' ' + m.year) : (m.year || '');
+    const infoLine = [yearMonth, m.runtime ? fmtRuntime(m.runtime) : null].filter(Boolean).join(' · ');
+
+    let badges = '';
+    if(m.wishlist) badges += `<span class="rating-badge" style="color:var(--wishlist); border-color:var(--wishlist);">WISHLIST</span>`;
+    if(m.contentRating) badges += `<span class="rating-badge">${escapeHtml(m.contentRating)}</span>`;
+    if(m.digitalIntermediate === '4K Native'){ const c=badgeColor('4K Native'); badges += `<span class="badge quality" style="color:${c}">4K NATIVE</span>`; }
+    if((m.audioFormats||[]).some(a=>/atmos/i.test(a))){ const c=badgeColor('Atmos'); badges += `<span class="badge quality" style="color:${c}">ATMOS</span>`; }
+    if(m.hdrType === 'Dolby Vision'){ const c=badgeColor('Dolby Vision'); badges += `<span class="badge quality" style="color:${c}">DOLBY VISION</span>`; }
+
+    let html = `<div class="detail-header-row">
+      ${posterBlock}
+      <div class="detail-header-info">
+        <div class="card-year">${escapeHtml(infoLine)}</div>
+        ${scoreRow(m)}
+        <div class="detail-badges">${badges}</div>
+      </div>
+    </div>`;
+
+    html += '<div class="color-section-title">Formats Owned</div>';
+    const formats = m.formats || [];
+    if(!formats.length){
+      html += '<p class="stats-empty">Not marked as owned in any format.</p>';
+    } else {
+      html += formats.map(f=>`
+        <div class="avg-price-row"><span class="badge ${FORMAT_CLASS[f.type]}">${escapeHtml(f.type)}</span><span class="avg-num">${f.price ? '$'+parseFloat(f.price).toFixed(2) : '—'}</span></div>
+      `).join('');
+    }
+    if(m.upgradePrice && !formats.some(f=>f.type==='4K UHD')){
+      html += `<div class="avg-price-row"><span style="color:var(--wishlist);">↑ Upgrade to 4K</span><span class="avg-num" style="color:var(--wishlist);">$${m.upgradePrice.toFixed(2)}</span></div>`;
+    }
+
+    const transferRows = [
+      ['Digital Intermediate', m.digitalIntermediate],
+      ['HDR Type', m.hdrType],
+      ['Aspect Ratio', m.aspectRatio],
+      ['Audio Format', (m.audioFormats||[])[0]],
+      ['4K Release Year', m.uhdReleaseYear]
+    ].filter(([,v])=>v);
+    if(transferRows.length){
+      html += '<div class="color-section-title">4K Transfer Info</div>';
+      html += transferRows.map(([label,val])=>`<div class="avg-price-row"><span>${escapeHtml(label)}</span><span class="avg-num">${escapeHtml(String(val))}</span></div>`).join('');
+    }
+
+    if(m.rating){
+      html += '<div class="color-section-title">Your Rating</div>';
+      const stars = [1,2,3,4,5].map(i => `<span class="star-static ${i<=(m.rating||0)?'filled':''}">★</span>`).join('');
+      html += `<div class="stars-row">${stars}</div>`;
+    }
+
+    if((m.tags||[]).length){
+      html += '<div class="color-section-title">Tags</div>';
+      html += '<div class="detail-pills">' + m.tags.map(t=>`<span class="tag-pill-mini" style="${tagStyle(t)}">${escapeHtml(t)}</span>`).join('') + '</div>';
+    }
+
+    if((m.collections||[]).length){
+      html += '<div class="color-section-title">Collections</div>';
+      html += '<div class="detail-pills">' + m.collections.map(c=>`<span class="tag-pill-mini" style="${collectionStyle(c)}">${escapeHtml(c)}</span>`).join('') + '</div>';
+    }
+
+    if(m.notes){
+      html += '<div class="color-section-title">Notes</div>';
+      html += `<div class="detail-notes">${escapeHtml(m.notes)}</div>`;
+    }
+
+    if(m.acquiredDate){
+      html += '<div class="color-section-title">Acquired</div>';
+      html += `<p class="stats-empty" style="margin:0;">${escapeHtml(m.acquiredDate)}</p>`;
+    }
+
+    $('detailContent').innerHTML = html;
+  }
+  function openDetailModal(id){
+    const m = movies.find(x=>x.id===id);
+    if(!m) return;
+    renderMovieDetail(m);
+    $('detailEditBtn').dataset.id = id;
+    $('detailOverlay').classList.add('open');
+  }
+  $('detailCloseBtn').addEventListener('click', ()=> $('detailOverlay').classList.remove('open'));
+  $('closeDetailBtn').addEventListener('click', ()=> $('detailOverlay').classList.remove('open'));
+  $('detailOverlay').addEventListener('click', e=>{ if(e.target === $('detailOverlay')) $('detailOverlay').classList.remove('open'); });
+  $('detailEditBtn').addEventListener('click', ()=>{
+    const id = $('detailEditBtn').dataset.id;
+    $('detailOverlay').classList.remove('open');
+    openEditModal(id);
+  });
+
+  // ---------- Book detail ----------
+  function renderBookDetail(b){
+    $('bookDetailTitle').textContent = b.title || '';
+    const letter = (b.title||'?').charAt(0).toUpperCase();
+    const posterSrc = b.posterData || b.posterUrl || '';
+    const posterBlock = posterSrc
+      ? `<img class="detail-poster" src="${escapeHtml(posterSrc)}" alt="">`
+      : `<div class="detail-poster-placeholder">${escapeHtml(letter)}</div>`;
+    const infoLine = [b.publishYear || '', b.pageCount ? b.pageCount + ' pages' : null].filter(Boolean).join(' · ');
+
+    let badges = '';
+    if(b.wishlist) badges += `<span class="rating-badge" style="color:var(--wishlist); border-color:var(--wishlist);">WISHLIST</span>`;
+    if(b.readStatus) badges += `<span class="rating-badge">${escapeHtml(READ_STATUS_LABEL[b.readStatus]||b.readStatus)}</span>`;
+
+    let html = `<div class="detail-header-row">
+      ${posterBlock}
+      <div class="detail-header-info">
+        ${b.author ? `<div class="card-year">${escapeHtml(b.author)}</div>` : ''}
+        <div class="card-year">${escapeHtml(infoLine)}</div>
+        ${bookScoreRow(b)}
+        <div class="detail-badges">${badges}</div>
+      </div>
+    </div>`;
+
+    html += '<div class="color-section-title">Formats Owned</div>';
+    const formats = b.formats || [];
+    if(!formats.length){
+      html += '<p class="stats-empty">Not marked as owned in any format.</p>';
+    } else {
+      html += formats.map(f=>`
+        <div class="avg-price-row"><span class="badge ${BOOK_FORMAT_CLASS[f.type]}">${escapeHtml(f.type)}</span><span class="avg-num">${f.price ? '$'+parseFloat(f.price).toFixed(2) : '—'}</span></div>
+      `).join('');
+    }
+
+    if(b.isbn){
+      html += '<div class="color-section-title">ISBN</div>';
+      html += `<p class="stats-empty" style="margin:0;">${escapeHtml(b.isbn)}</p>`;
+    }
+
+    if(b.rating){
+      html += '<div class="color-section-title">Your Rating</div>';
+      const stars = [1,2,3,4,5].map(i => `<span class="star-static ${i<=(b.rating||0)?'filled':''}">★</span>`).join('');
+      html += `<div class="stars-row">${stars}</div>`;
+    }
+
+    if((b.tags||[]).length){
+      html += '<div class="color-section-title">Genre</div>';
+      html += '<div class="detail-pills">' + b.tags.map(t=>`<span class="tag-pill-mini" style="${tagStyle(t)}">${escapeHtml(t)}</span>`).join('') + '</div>';
+    }
+
+    if((b.collections||[]).length){
+      html += '<div class="color-section-title">Series</div>';
+      html += '<div class="detail-pills">' + b.collections.map(c=>`<span class="tag-pill-mini" style="${collectionStyle(c)}">${escapeHtml(c)}</span>`).join('') + '</div>';
+    }
+
+    if(b.notes){
+      html += '<div class="color-section-title">Notes</div>';
+      html += `<div class="detail-notes">${escapeHtml(b.notes)}</div>`;
+    }
+
+    if(b.acquiredDate){
+      html += '<div class="color-section-title">Acquired</div>';
+      html += `<p class="stats-empty" style="margin:0;">${escapeHtml(b.acquiredDate)}</p>`;
+    }
+
+    $('bookDetailContent').innerHTML = html;
+  }
+  function openBookDetailModal(id){
+    const b = books.find(x=>x.id===id);
+    if(!b) return;
+    renderBookDetail(b);
+    $('bookDetailEditBtn').dataset.id = id;
+    $('bookDetailOverlay').classList.add('open');
+  }
+  $('bookDetailCloseBtn').addEventListener('click', ()=> $('bookDetailOverlay').classList.remove('open'));
+  $('closeBookDetailBtn').addEventListener('click', ()=> $('bookDetailOverlay').classList.remove('open'));
+  $('bookDetailOverlay').addEventListener('click', e=>{ if(e.target === $('bookDetailOverlay')) $('bookDetailOverlay').classList.remove('open'); });
+  $('bookDetailEditBtn').addEventListener('click', ()=>{
+    const id = $('bookDetailEditBtn').dataset.id;
+    $('bookDetailOverlay').classList.remove('open');
+    openBookEditModal(id);
+  });
 
   $('authBtn').addEventListener('click', async ()=>{
     $('menuDropdown').classList.remove('open');
@@ -2144,7 +3210,25 @@
 
   $('clearAllBtn').addEventListener('click', ()=>{
     $('menuDropdown').classList.remove('open');
-    askConfirm('Clear everything?', 'This deletes your entire collection ' + (cloudOn() ? 'from all synced devices.' : 'from this device.') + ' This cannot be undone.', async ()=>{
+    const isBooks = currentMode === 'books';
+    const noun = isBooks ? 'book collection' : 'movie collection';
+    askConfirm('Clear everything?', `This deletes your entire ${noun} ` + (cloudOn() ? 'from all synced devices.' : 'from this device.') + ' This cannot be undone.', async ()=>{
+      if(isBooks){
+        if(cloudOn()){
+          const ids = books.map(b=>b.id);
+          for(let i=0; i<ids.length; i+=450){
+            const batch = fbDb.batch();
+            ids.slice(i, i+450).forEach(id=> batch.delete(bookCol().doc(id)));
+            batch.commit().catch(()=> setSyncState('error'));
+          }
+          localStorage.removeItem(BOOKS_STORAGE_KEY);
+          return;
+        }
+        books = [];
+        render();
+        await saveBooks();
+        return;
+      }
       if(cloudOn()){
         const ids = movies.map(m=>m.id);
         for(let i=0; i<ids.length; i+=450){
@@ -2163,12 +3247,16 @@
 
   // ---------- Cross-device sync on focus ----------
   document.addEventListener('visibilitychange', ()=>{
-    if(document.visibilityState === 'visible' && !$('modalOverlay').classList.contains('open')){
+    if(document.visibilityState === 'visible' && !$('modalOverlay').classList.contains('open') && !$('bookModalOverlay').classList.contains('open')){
       loadMovies();
+      loadBooks();
     }
   });
   window.addEventListener('focus', ()=>{
-    if(!$('modalOverlay').classList.contains('open')) loadMovies();
+    if(!$('modalOverlay').classList.contains('open') && !$('bookModalOverlay').classList.contains('open')){
+      loadMovies();
+      loadBooks();
+    }
   });
 
   // ---------- Init ----------
@@ -2187,17 +3275,22 @@
       fbUser = user;
       updateAuthUI();
       if(unsubMovies){ unsubMovies(); unsubMovies = null; }
+      if(unsubBooks){ unsubBooks(); unsubBooks = null; }
       if(user){
         setSyncState('syncing');
         await firstSyncMerge();
+        await firstSyncMergeBooks();
         subscribeMovies();
+        subscribeBooks();
       } else {
         setSyncState('ok');
         loadMovies();
+        loadBooks();
       }
     });
   } else {
     loadMovies();
+    loadBooks();
   }
 })();
 </script>
