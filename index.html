@@ -1715,10 +1715,16 @@
   }
 
   function updateSuggestionLists(){
-    $('tagSuggestions').innerHTML = allTags().map(t=>`<option value="${escapeHtml(t)}">`).join('');
-    $('collectionSuggestions').innerHTML = allCollections().map(c=>`<option value="${escapeHtml(c)}">`).join('');
-    $('genreSuggestions').innerHTML = allGenres().map(t=>`<option value="${escapeHtml(t)}">`).join('');
-    $('seriesSuggestions').innerHTML = allSeries().map(c=>`<option value="${escapeHtml(c)}">`).join('');
+    // tags/genre and collections/series share one suggestion pool each, so typing in either
+    // surfaces values already used on the other side — this is what actually prevents near-duplicates
+    const tagPool = [...new Set([...allTags(), ...allGenres()])].sort();
+    const collPool = [...new Set([...allCollections(), ...allSeries()])].sort();
+    const tagOptions = tagPool.map(t=>`<option value="${escapeHtml(t)}">`).join('');
+    const collOptions = collPool.map(c=>`<option value="${escapeHtml(c)}">`).join('');
+    $('tagSuggestions').innerHTML = tagOptions;
+    $('genreSuggestions').innerHTML = tagOptions;
+    $('collectionSuggestions').innerHTML = collOptions;
+    $('seriesSuggestions').innerHTML = collOptions;
   }
 
   // ---------- Filters / search / sort ----------
@@ -2210,13 +2216,24 @@
     });
   }
 
+  function canonicalizeValue(v, pool){
+    const lower = v.toLowerCase();
+    const match = pool.find(p => p.toLowerCase() === lower);
+    return match || v; // reuse the existing casing if this value already exists anywhere, case-insensitively
+  }
   function setupPillInput(inputId, arr, wrapId){
     const input = $(inputId);
+    const isTagLike = (wrapId === 'tagsWrap' || wrapId === 'genreWrap');
+    const isCollLike = (wrapId === 'collectionsWrap' || wrapId === 'seriesWrap');
     input.addEventListener('keydown', e=>{
       if(e.key === 'Enter' || e.key === ','){
         e.preventDefault();
-        const v = input.value.trim().replace(/,$/,'');
-        if(v && !arr.includes(v)){ arr.push(v); buildPills(wrapId, arr, inputId); }
+        let v = input.value.trim().replace(/,$/,'');
+        if(v){
+          if(isTagLike) v = canonicalizeValue(v, [...allTags(), ...allGenres()]);
+          else if(isCollLike) v = canonicalizeValue(v, [...allCollections(), ...allSeries()]);
+          if(!arr.includes(v)){ arr.push(v); buildPills(wrapId, arr, inputId); }
+        }
         input.value = '';
       } else if(e.key === 'Backspace' && !input.value && arr.length){
         arr.pop(); buildPills(wrapId, arr, inputId);
