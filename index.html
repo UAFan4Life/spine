@@ -55,6 +55,8 @@
     backdrop-filter:blur(10px);
     border-bottom:1px solid var(--border-soft);
     padding:14px 16px 12px;
+    transition:transform .26s cubic-bezier(.4,0,.2,1);
+    will-change:transform;
   }
   .header-top{
     display:flex; align-items:center; justify-content:space-between;
@@ -584,6 +586,56 @@
 
   .visually-hidden{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0);}
 
+
+  /* ---------- Mobile ---------- */
+  @media (max-width:640px){
+    /* Auto-hiding header — the class is toggled by the scroll handler further down */
+    body.header-hidden .app-header{transform:translateY(-100%);}
+
+    .app-header{padding:10px 12px;}
+    .wordmark{font-size:25px; letter-spacing:2px;}
+    .mode-btn{padding:5px 13px; font-size:12.5px;}
+    #syncLabel{display:none;}          /* the dot already carries the state */
+    .header-actions{gap:8px;}
+    .search-row{margin-top:9px;}
+    .search-input{padding:9px 12px; font-size:14px;}
+    .stats-strip{margin-top:9px; gap:8px;}
+    .stat-pill{padding:6px 11px;}
+    .stat-pill .num{font-size:14px;}
+    .filter-bar{margin-top:9px; gap:6px;}
+    .collection-bar{margin-top:8px;}
+
+    /* Two posters per row instead of one */
+    .movie-grid{
+      margin-top:12px; padding:0 10px 32px;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:10px;
+    }
+    .card-body{padding:8px 9px 9px; gap:4px;}
+    .card-title{
+      font-size:15.5px; line-height:1.05;
+      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+    }
+    .card-year{font-size:11px;}
+    .rating-badge{font-size:8.5px; padding:1px 4px;}
+    .score-block{margin-top:3px; gap:2px;}
+    .score-row{gap:5px;}
+    .score-src{font-size:8.5px; width:27px;}
+    .score-stars{font-size:11px; letter-spacing:.5px;}
+    .score-num{font-size:10.5px;}
+    .badges{gap:3px;}
+    .badge{font-size:8.5px; padding:2px 5px;}
+    .price-tag{font-size:11.5px;}
+    .tag-pill-mini{font-size:8.5px;}
+    .star-static{font-size:11px;}
+    .card-hole{width:9px; height:9px; top:7px; left:7px;}
+    .wishlist-ribbon{top:7px; font-size:8px; padding:2px 7px 2px 9px;}
+    .poster-placeholder{font-size:26px;}
+
+    /* List view keeps its single-column flex layout; just tighten the spacing */
+    .movie-grid.list-mode{gap:7px; padding:0 10px 32px;}
+    .list-mode .card-title{-webkit-line-clamp:1;}
+  }
   @media (prefers-reduced-motion: reduce){
     *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;}
   }
@@ -668,7 +720,7 @@
   <div class="scan-overlay" id="scanOverlay">
     <video id="scanVideo" playsinline muted></video>
     <div class="scan-frame"></div>
-    <div class="scan-hint">Point at the barcode on the back of the case</div>
+    <div class="scan-hint" id="scanHint">Point at the barcode on the back of the case</div>
     <button class="icon-btn scan-close" id="scanCloseBtn" aria-label="Close scanner">✕</button>
   </div>
   <div class="toast" id="toast"></div>
@@ -2054,32 +2106,97 @@
   document.addEventListener('click', e=>{ if(!e.target.closest('#bookModalOverlay .lookup-wrap')) hideBookLookup(); });
 
   // ---------- Barcode scanning ----------
-  let scanStream = null, scanTimer = null, scanReady = false;
+  let scanStream = null, scanTimer = null, scanDecoder = null, zxingPromise = null;
   const normUpc = c => String(c || '').replace(/^0+/, '');
+  const SCAN_FORMATS = ['upc_a','upc_e','ean_13','ean_8'];
 
-  (async ()=>{
+  // Chrome/Edge on Android have BarcodeDetector built in — nothing to download.
+  async function nativeDecoder(){
+    if(!('BarcodeDetector' in window)) return null;
     try{
-      if('BarcodeDetector' in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
-        const fmts = await BarcodeDetector.getSupportedFormats();
-        scanReady = fmts.includes('upc_a') || fmts.includes('ean_13');
+      const fmts = await BarcodeDetector.getSupportedFormats();
+      const usable = SCAN_FORMATS.filter(f => fmts.includes(f));
+      if(!usable.length) return null;
+      const d = new BarcodeDetector({formats:usable});
+      return { detect: v => d.detect(v) };
+    }catch(e){ return null; }
+  }
+
+  // Firefox (and Safari before 17) ship no BarcodeDetector at all, which is why the
+  // scan button used to disappear. Pull in ZXing only for those browsers, on first tap.
+  function loadZxing(){
+    if(zxingPromise) return zxingPromise;
+    zxingPromise = new Promise((resolve, reject)=>{
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js';
+      s.onload = ()=> window.ZXing ? resolve(window.ZXing) : reject(new Error('zxing missing'));
+      s.onerror = ()=> reject(new Error('zxing blocked'));
+      document.head.appendChild(s);
+    }).catch(e=>{ zxingPromise = null; throw e; });   // let a failed load be retried
+    return zxingPromise;
+  }
+
+  async function zxingDecoder(){
+    const Z = await loadZxing();
+    const hints = new Map();
+    hints.set(Z.DecodeHintType.POSSIBLE_FORMATS,
+      [Z.BarcodeFormat.UPC_A, Z.BarcodeFormat.UPC_E, Z.BarcodeFormat.EAN_13, Z.BarcodeFormat.EAN_8]);
+    hints.set(Z.DecodeHintType.TRY_HARDER, true);
+    const reader = new Z.MultiFormatReader();
+    reader.setHints(hints);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', {willReadFrequently:true});
+    return { detect(video){
+      if(!video.videoWidth) return [];
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0);
+      try{
+        const src = new Z.HTMLCanvasElementLuminanceSource(canvas);
+        const res = reader.decode(new Z.BinaryBitmap(new Z.HybridBinarizer(src)));
+        return res ? [{rawValue:res.getText()}] : [];
+      }catch(e){
+        return [];                    // NotFoundException on every frame without a barcode
+      }finally{
+        reader.reset();
       }
-    }catch(e){}
-    if(!scanReady) $('scanFab').style.display = 'none';
-  })();
+    }};
+  }
+
+  async function getDecoder(){
+    if(scanDecoder) return scanDecoder;
+    scanDecoder = await nativeDecoder();
+    if(!scanDecoder){
+      $('scanHint').textContent = 'Loading scanner…';
+      scanDecoder = await zxingDecoder();
+    }
+    return scanDecoder;
+  }
 
   async function openScanner(){
-    if(!scanReady) return;
+    // The button stays visible now, so say plainly why a scan can't start.
+    if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)){
+      const secure = window.isSecureContext;
+      showToast(secure ? 'This browser cannot use the camera' : 'Camera needs an https connection', true);
+      return;
+    }
     $('scanOverlay').classList.add('open');
+    try{
+      await getDecoder();
+    }catch(e){
+      closeScanner();
+      showToast('Scanner failed to load — check your connection', true);
+      return;
+    }
+    $('scanHint').textContent = 'Point at the barcode on the back of the case';
     try{
       scanStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}, audio:false});
       const video = $('scanVideo');
       video.srcObject = scanStream;
       await video.play();
-      const detector = new BarcodeDetector({formats:['upc_a','upc_e','ean_13','ean_8']});
       const tick = async ()=>{
         if(!scanStream) return;
         try{
-          const codes = await detector.detect(video);
+          const codes = await scanDecoder.detect(video);
           if(codes.length && codes[0].rawValue){
             if(navigator.vibrate) navigator.vibrate(80);
             const code = codes[0].rawValue;
@@ -3400,6 +3517,51 @@
       loadBooks();
     }
   });
+
+  // ---------- Auto-hiding header (mobile) ----------
+  // The CSS transform only exists under the mobile media query, so this class is
+  // harmless on desktop — no need to branch on viewport width here.
+  (function(){
+    const header = document.querySelector('.app-header');
+    if(!header) return;
+    const JITTER = 6;            // px of movement to ignore, so a resting finger doesn't toggle it
+    let lastY = Math.max(0, window.scrollY), hidden = false, ticking = false;
+
+    function setHidden(v){
+      if(v === hidden) return;
+      hidden = v;
+      document.body.classList.toggle('header-hidden', v);
+    }
+
+    function onScroll(){
+      ticking = false;
+      const y = Math.max(0, window.scrollY);   // clamp iOS rubber-banding
+      const diff = y - lastY;
+      if(y <= header.offsetHeight * 0.6){
+        setHidden(false);                      // always exposed near the top
+      } else if(diff > JITTER){
+        setHidden(true);                       // scrolling down
+      } else if(diff < -JITTER){
+        setHidden(false);                      // scrolling up
+      }
+      if(Math.abs(diff) > JITTER) lastY = y;   // keep the baseline so slow drags still accumulate
+    }
+
+    window.addEventListener('scroll', ()=>{
+      if(!ticking){ ticking = true; requestAnimationFrame(onScroll); }
+    }, {passive:true});
+
+    // If the page stops being scrollable while the header is tucked away (a filter that
+    // matches little, a deletion), there'd be no scroll left to bring it back.
+    if(window.ResizeObserver){
+      new ResizeObserver(()=>{
+        if(document.documentElement.scrollHeight - window.innerHeight < 40) setHidden(false);
+      }).observe(document.body);
+    }
+
+    // Focusing search via the keyboard must not leave the field off-screen.
+    document.addEventListener('focusin', e=>{ if(header.contains(e.target)) setHidden(false); });
+  })();
 
   // ---------- Init ----------
   updateAuthUI();
