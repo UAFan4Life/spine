@@ -704,6 +704,9 @@
         <option value="price-high">Price: high–low</option>
         <option value="rating">Rating: high–low</option>
       </select>
+      <select class="sort-select" id="acquiredMonthSelect" title="Filter by date acquired">
+        <option value="">📅 All months</option>
+      </select>
       <button class="view-toggle" id="viewToggle" title="List view">☰</button>
     </div>
     <div class="collection-bar" id="collectionChips"></div>
@@ -1125,6 +1128,7 @@
   let viewMode = 'grid';
   try{ viewMode = localStorage.getItem('view-mode') || 'grid'; }catch(e){}
   let activeCollection = '';
+  let activeAcquiredMonth = '';   // '' = no month filter; otherwise 'YYYY-MM'
   let pendingConfirm = null;
 
   // ---------- Tag colors ----------
@@ -1448,6 +1452,9 @@
     if(activeCollection){
       list = list.filter(m => (m.collections||[]).includes(activeCollection));
     }
+    if(activeAcquiredMonth){
+      list = list.filter(m => (m.acquiredDate||'').slice(0,7) === activeAcquiredMonth);
+    }
     if(searchQuery.trim()){
       const q = searchQuery.trim().toLowerCase();
       list = list.filter(m =>
@@ -1482,6 +1489,9 @@
     }
     if(activeBookCollection){
       list = list.filter(b => (b.collections||[]).includes(activeBookCollection));
+    }
+    if(activeAcquiredMonth){
+      list = list.filter(b => (b.acquiredDate||'').slice(0,7) === activeAcquiredMonth);
     }
     if(searchQuery.trim()){
       const q = searchQuery.trim().toLowerCase();
@@ -1536,6 +1546,28 @@
       sums[bucket] = (sums[bucket]||0) + priceOf(m);
     });
     return Object.entries(sums).sort((a,b)=> a[0].localeCompare(b[0]));
+  }
+  // Months that actually have a logged "date acquired" — newest first. Deliberately does
+  // NOT fall back to dateAdded the way monthBucket does: this filter is about what you
+  // recorded buying, not when the row happened to be created.
+  function acquiredMonths(){
+    const src = currentMode === 'books' ? books : movies;
+    const set = new Set();
+    src.forEach(x=>{ if(x.acquiredDate) set.add(x.acquiredDate.slice(0,7)); });
+    return [...set].sort((a,b)=> b.localeCompare(a));
+  }
+  function acquiredMonthLabel(ym){
+    const [y,mo] = ym.split('-');
+    return MONTH_NAMES[parseInt(mo,10)-1] + ' ' + y;
+  }
+  function renderAcquiredMonths(){
+    const months = acquiredMonths();
+    const sel = $('acquiredMonthSelect');
+    if(activeAcquiredMonth && !months.includes(activeAcquiredMonth)) activeAcquiredMonth = '';
+    sel.innerHTML = '<option value="">📅 All months</option>' +
+      months.map(m=>`<option value="${m}">${acquiredMonthLabel(m)}</option>`).join('');
+    sel.value = activeAcquiredMonth;
+    sel.style.display = months.length ? '' : 'none';   // nothing logged yet = no dead control
   }
   function monthLabel(ym){
     const [y,mo] = ym.split('-');
@@ -1799,6 +1831,7 @@
   function render(){
     renderStats();
     renderCollectionChips();
+    renderAcquiredMonths();
     if(currentMode !== 'books') renderRatingChips();
     renderMovies();
     updateSuggestionLists();
@@ -1846,6 +1879,10 @@
     else { activeReadStatusFilters.add(st); btn.classList.add('active'); }
     renderMovies();
   });
+  $('acquiredMonthSelect').addEventListener('change', e=>{
+    activeAcquiredMonth = e.target.value;
+    renderMovies();                       // delegates to the books grid when in books mode
+  });
   $('sortSelect').addEventListener('change', e=>{ sortBy = e.target.value; renderMovies(); });
 
   function applyViewMode(){
@@ -1875,6 +1912,7 @@
     $('searchInput').placeholder = isBooks ? 'Search title, author, genre, series…' : 'Search title, tag, or collection…';
     searchQuery = '';
     $('searchInput').value = '';
+    activeAcquiredMonth = '';
     activeFormatFilters.clear();
     activeRatingFilters.clear();
     activeBookFormatFilters.clear();
@@ -2462,6 +2500,7 @@
     $('uhdYearInput').value = '';
     $('upgradePriceInput').value = '';
     $('acquiredDateInput').value = new Date().toISOString().slice(0,10);
+    syncAcquiredField(false, false);
     $('wishlistToggle').checked = false;
     $('wishlistLabel').textContent = 'I own this';
     $('notesInput').value = '';
@@ -2504,6 +2543,7 @@
     $('uhdYearInput').value = m.uhdReleaseYear || '';
     $('upgradePriceInput').value = m.upgradePrice || '';
     $('acquiredDateInput').value = m.acquiredDate || '';
+    syncAcquiredField(!!m.wishlist, false);
     $('wishlistToggle').checked = !!m.wishlist;
     $('wishlistLabel').textContent = m.wishlist ? 'On my wishlist' : 'I own this';
     $('notesInput').value = m.notes || '';
@@ -2527,8 +2567,24 @@
   $('closeModalBtn').addEventListener('click', closeModal);
   $('cancelBtn').addEventListener('click', closeModal);
   $('modalOverlay').addEventListener('click', e=>{ if(e.target === $('modalOverlay')) closeModal(); });
+  // A wishlist item hasn't been acquired, so the date is cleared (and locked) while the
+  // toggle is on. The previous value is kept so flipping back doesn't lose what was typed.
+  let stashedAcquired = '';
+  // `fill` is only true when the user actively flips the toggle back to "I own this".
+  // Opening an existing entry must never invent a date that would then be saved.
+  function syncAcquiredField(isWishlist, fill){
+    const el = $('acquiredDateInput');
+    if(isWishlist){
+      if(el.value) stashedAcquired = el.value;
+      el.value = '';
+    } else if(fill && !el.value){
+      el.value = stashedAcquired || new Date().toISOString().slice(0,10);
+    }
+    el.disabled = isWishlist;
+  }
   $('wishlistToggle').addEventListener('change', e=>{
     $('wishlistLabel').textContent = e.target.checked ? 'On my wishlist' : 'I own this';
+    syncAcquiredField(e.target.checked, true);
   });
 
   $('movieForm').addEventListener('submit', async e=>{
@@ -2556,7 +2612,7 @@
       aspectRatio: $('aspectRatioSelect').value,
       uhdReleaseYear: $('uhdYearInput').value ? parseInt($('uhdYearInput').value) : null,
       upgradePrice: $('upgradePriceInput').value ? parseFloat($('upgradePriceInput').value) : null,
-      acquiredDate: $('acquiredDateInput').value,
+      acquiredDate: $('wishlistToggle').checked ? '' : $('acquiredDateInput').value,
       wishlist: $('wishlistToggle').checked,
       formats,
       rating: formRating,
@@ -2698,6 +2754,7 @@
     checkBookDuplicate('');
     updateBookPosterPreview();
     $('bookAcquiredDateInput').value = new Date().toISOString().slice(0,10);
+    syncBookAcquiredField(false, false);
     $('amazonPriceInput').value = '';
     $('bookWishlistToggle').checked = false;
     $('bookWishlistLabel').textContent = 'I own this';
@@ -2735,6 +2792,7 @@
     checkBookDuplicate(b.title);
     updateBookPosterPreview();
     $('bookAcquiredDateInput').value = b.acquiredDate || '';
+    syncBookAcquiredField(!!b.wishlist, false);
     $('amazonPriceInput').value = b.amazonPrice || '';
     $('bookWishlistToggle').checked = !!b.wishlist;
     $('bookWishlistLabel').textContent = b.wishlist ? 'On my wishlist' : 'I own this';
@@ -2761,8 +2819,20 @@
   $('closeBookModalBtn').addEventListener('click', closeBookModal);
   $('bookCancelBtn').addEventListener('click', closeBookModal);
   $('bookModalOverlay').addEventListener('click', e=>{ if(e.target === $('bookModalOverlay')) closeBookModal(); });
+  let stashedBookAcquired = '';
+  function syncBookAcquiredField(isWishlist, fill){
+    const el = $('bookAcquiredDateInput');
+    if(isWishlist){
+      if(el.value) stashedBookAcquired = el.value;
+      el.value = '';
+    } else if(fill && !el.value){
+      el.value = stashedBookAcquired || new Date().toISOString().slice(0,10);
+    }
+    el.disabled = isWishlist;
+  }
   $('bookWishlistToggle').addEventListener('change', e=>{
     $('bookWishlistLabel').textContent = e.target.checked ? 'On my wishlist' : 'I own this';
+    syncBookAcquiredField(e.target.checked, true);
   });
 
   $('bookForm').addEventListener('submit', async e=>{
@@ -2783,7 +2853,7 @@
       publicRating: formBookPublicRating,
       publicRatingCount: formBookPublicRatingCount,
       readStatus: $('readStatusSelect').value,
-      acquiredDate: $('bookAcquiredDateInput').value,
+      acquiredDate: $('bookWishlistToggle').checked ? '' : $('bookAcquiredDateInput').value,
       amazonPrice: $('amazonPriceInput').value ? parseFloat($('amazonPriceInput').value) : null,
       wishlist: $('bookWishlistToggle').checked,
       formats,
