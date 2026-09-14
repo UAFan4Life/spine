@@ -270,6 +270,10 @@
   .badge.fmt-ebook{background:var(--c-ebook);}
   .badge.fmt-audiobook{background:var(--c-audiobook);}
   .badge.quality{font-weight:700;}
+  /* A verdict is an intention, not a disc on the shelf — outline it instead of filling it */
+  .verdict-chip{background:transparent; border:1px solid currentColor; font-weight:700;}
+  .verdict-chip.v-4k{color:var(--c-4k);}
+  .verdict-chip.v-bluray{color:var(--c-bluray);}
   .upgrade-chip{
     font-family:var(--font-mono); font-size:11px; font-weight:600; color:var(--wishlist);
     margin-left:6px;
@@ -802,6 +806,15 @@
             <button type="button" data-status="researched">Researched</button>
           </div>
           <div class="toggle-sub" id="statusHint" style="margin-top:6px;">On your shelf.</div>
+        </div>
+
+        <div class="form-group" id="verdictGroup" hidden>
+          <label for="verdictSelect">After research, I should…</label>
+          <select class="field-select" id="verdictSelect">
+            <option value="">— haven't decided</option>
+            <option value="4k">Grab / upgrade to 4K</option>
+            <option value="bluray">Stick with Blu-ray</option>
+          </select>
         </div>
 
         <div class="form-group">
@@ -1682,6 +1695,16 @@
     }
   }
 
+  const VERDICTS = {
+    '4k':     {chip:'GO 4K',             cls:'v-4k',     long:'Grab / upgrade to 4K'},
+    'bluray': {chip:'STICK WITH BLU-RAY', cls:'v-bluray', long:'Stick with Blu-ray'}
+  };
+  // Only meaningful while you're still deciding; owned discs speak for themselves.
+  function verdictChip(m){
+    if(isOwned(m)) return '';
+    const v = VERDICTS[m.verdict];
+    return v ? `<span class="badge verdict-chip ${v.cls}">${v.chip}</span>` : '';
+  }
   function statusRibbon(x){
     if(isResearched(x)) return '<div class="wishlist-ribbon ribbon-researched">RESEARCHED</div>';
     if(isWishlisted(x)) return '<div class="wishlist-ribbon">WISHLIST</div>';
@@ -1693,6 +1716,7 @@
     if(m.digitalIntermediate === '4K Native'){ const c=badgeColor('4K Native'); badges += `<span class="badge quality" style="background:${c}; color:${contrastText(c)}">4K NATIVE</span>`; }
     if((m.audioFormats||[]).some(a=>/atmos/i.test(a))){ const c=badgeColor('Atmos'); badges += `<span class="badge quality" style="background:${c}; color:${contrastText(c)}">ATMOS</span>`; }
     if(m.hdrType === 'Dolby Vision'){ const c=badgeColor('Dolby Vision'); badges += `<span class="badge quality" style="background:${c}; color:${contrastText(c)}">DOLBY VISION</span>`; }
+    badges += verdictChip(m);
     const stars = [1,2,3,4,5].map(i => `<span class="star-static ${i<=(m.rating||0)?'filled':''}">★</span>`).join('');
     const price = priceOf(m);
     const showUpgrade = m.upgradePrice && !formats.some(f=>f.type==='4K UHD');
@@ -2543,6 +2567,7 @@
     syncAcquiredField(false, false);
     setFormStatus('owned');
     $('notesInput').value = '';
+    $('verdictSelect').value = '';
     buildFormatGrid();
     buildStarPicker();
     buildPills('tagsWrap', formTags, 'tagsInput');
@@ -2585,6 +2610,7 @@
     $('acquiredDateInput').value = m.acquiredDate || '';
     setFormStatus(statusOf(m), true);
     $('notesInput').value = m.notes || '';
+    $('verdictSelect').value = m.verdict || '';
     formFormats = {};
     (m.formats||[]).forEach(f=> formFormats[f.type] = f.price || '');
     formRating = m.rating || 0;
@@ -2627,6 +2653,7 @@
       b.classList.toggle('active', b.dataset.status === status));
     $('statusHint').textContent = STATUS_HINT[status];
     syncAcquiredField(status !== 'owned', !fromExisting);
+    $('verdictGroup').hidden = (status === 'owned');
   }
   $('statusPicker').addEventListener('click', e=>{
     const btn = e.target.closest('button'); if(!btn) return;
@@ -2667,6 +2694,7 @@
       tags: formTags.slice(),
       collections: formCollections.slice(),
       notes: $('notesInput').value.trim(),
+      verdict: $('verdictSelect').value,
       dateAdded: existing ? (existing.dateAdded || Date.now()) : Date.now()
     };
     if(cloudOn()){
@@ -3407,6 +3435,7 @@
     let badges = '';
     if(isWishlisted(m)) badges += `<span class="rating-badge" style="color:var(--wishlist); border-color:var(--wishlist);">WISHLIST</span>`;
     if(isResearched(m)) badges += `<span class="rating-badge" style="color:var(--researched); border-color:var(--researched);">RESEARCHED</span>`;
+    badges += verdictChip(m);
     if(m.contentRating) badges += `<span class="rating-badge">${escapeHtml(m.contentRating)}</span>`;
     if(m.digitalIntermediate === '4K Native'){ const c=badgeColor('4K Native'); badges += `<span class="badge quality" style="color:${c}">4K NATIVE</span>`; }
     if((m.audioFormats||[]).some(a=>/atmos/i.test(a))){ const c=badgeColor('Atmos'); badges += `<span class="badge quality" style="color:${c}">ATMOS</span>`; }
