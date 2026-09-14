@@ -28,6 +28,7 @@
     --c-audiobook:#d97a4f;
     --danger:#d9635a;
     --wishlist:#e0637a;
+    --researched:#7e8fd9;
     --radius:14px;
     --radius-sm:8px;
     --font-display:'Bebas Neue', 'Arial Narrow', sans-serif;
@@ -153,6 +154,10 @@
     padding:6px 14px; border-radius:999px; font-size:13px; font-weight:600;
   }
   .segmented button.active{background:var(--accent); color:#14141a;}
+  .status-picker{width:100%;}
+  .status-picker button{flex:1; white-space:nowrap;}
+  .status-picker button.active[data-status="wishlist"]{background:var(--wishlist); color:#1a1013;}
+  .status-picker button.active[data-status="researched"]{background:var(--researched); color:#0f1020;}
   .chip-scroll{display:flex; gap:6px; flex-wrap:wrap;}
   .chip{
     background:var(--surface); border:1px solid var(--border);
@@ -230,6 +235,8 @@
   }
   .card-year-row{display:flex; align-items:baseline; justify-content:space-between; gap:6px; margin-top:1px;}
   .card-year{font-family:var(--font-mono); font-size:12.5px; color:var(--accent-light);}
+  /* Director/author can be long; keep it to one line so card heights stay even */
+  .card-director{white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text-dim);}
   .rating-badge{
     font-family:var(--font-mono); font-size:9.5px; font-weight:700; color:var(--text-dim);
     border:1px solid var(--border-soft); border-radius:4px; padding:1px 5px; flex:0 0 auto; white-space:nowrap;
@@ -287,6 +294,8 @@
     width:44px; min-width:44px; aspect-ratio:2/3; border-radius:6px; font-size:18px;
   }
   .list-mode .card-hole{display:none;}
+  /* Researched reuses the ribbon geometry so every responsive rule applies to both */
+  .wishlist-ribbon.ribbon-researched{background:var(--researched); color:#0f1020;}
   .list-mode .wishlist-ribbon{top:6px; font-size:8.5px; padding:2px 8px 2px 10px;}
   .list-mode .card-body{padding:0; flex-direction:row; align-items:center; gap:12px; flex-wrap:wrap;}
   .list-mode .card-title{font-size:16.5px;}
@@ -677,6 +686,7 @@
         <button data-mode="all" class="active">All</button>
         <button data-mode="owned">Owned</button>
         <button data-mode="wishlist">Wishlist</button>
+        <button data-mode="researched">Researched</button>
       </div>
       <div class="chip-scroll" id="formatChips">
         <button class="chip fmt-4k" data-fmt="4K UHD">4K UHD</button>
@@ -784,15 +794,14 @@
           <input type="date" id="acquiredDateInput">
         </div>
 
-        <div class="toggle-row">
-          <div>
-            <div class="toggle-label" id="wishlistLabel">I own this</div>
-            <div class="toggle-sub">Toggle on if it's on your wishlist instead</div>
+        <div class="form-group">
+          <label>Status</label>
+          <div class="segmented status-picker" id="statusPicker">
+            <button type="button" data-status="owned" class="active">Owned</button>
+            <button type="button" data-status="wishlist">Wishlist</button>
+            <button type="button" data-status="researched">Researched</button>
           </div>
-          <label class="switch">
-            <input type="checkbox" id="wishlistToggle">
-            <span class="track"><span class="knob"></span></span>
-          </label>
+          <div class="toggle-sub" id="statusHint" style="margin-top:6px;">On your shelf.</div>
         </div>
 
         <div class="form-group">
@@ -928,15 +937,14 @@
           <input type="date" id="bookAcquiredDateInput">
         </div>
 
-        <div class="toggle-row">
-          <div>
-            <div class="toggle-label" id="bookWishlistLabel">I own this</div>
-            <div class="toggle-sub">Toggle on if it's on your wishlist instead</div>
+        <div class="form-group">
+          <label>Status</label>
+          <div class="segmented status-picker" id="bookStatusPicker">
+            <button type="button" data-status="owned" class="active">Owned</button>
+            <button type="button" data-status="wishlist">Wishlist</button>
+            <button type="button" data-status="researched">Researched</button>
           </div>
-          <label class="switch">
-            <input type="checkbox" id="bookWishlistToggle">
-            <span class="track"><span class="knob"></span></span>
-          </label>
+          <div class="toggle-sub" id="bookStatusHint" style="margin-top:6px;">On your shelf.</div>
         </div>
 
         <div class="form-group">
@@ -1116,6 +1124,7 @@
   let pendingIsbn = '';
   let formRuntime = null, formImdbRating = null, formTmdbRating = null, formImdbId = '';
   let formContentRating = '';
+  let formDirector = '';
   const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const AUDIO_FORMAT_OPTIONS = ['Dolby Atmos','Dolby TrueHD','DTS:X','DTS-HD MA','DTS','Dolby Digital Plus','Dolby Digital','PCM'];
   const ASPECT_RATIO_OPTIONS = ['1.33:1','1.66:1','1.78:1','1.85:1','2.00:1','2.20:1','2.35:1','2.39:1','2.40:1','2.76:1'];
@@ -1128,7 +1137,19 @@
   let viewMode = 'grid';
   try{ viewMode = localStorage.getItem('view-mode') || 'grid'; }catch(e){}
   let activeCollection = '';
-  let activeAcquiredMonth = '';   // '' = no month filter; otherwise 'YYYY-MM'
+  let activeAcquiredMonth = '';
+  // Status is a three-way choice. `wishlist` stays a boolean so existing rows keep working;
+  // `researched` ("maybe") is layered on top and wins if both are somehow set.
+  const isResearched = x => !!x.researched;
+  const isWishlisted = x => !!x.wishlist && !x.researched;
+  const isOwned      = x => !x.wishlist && !x.researched;
+  const statusOf     = x => x.researched ? 'researched' : (x.wishlist ? 'wishlist' : 'owned');
+  const STATUS_HINT = {
+    owned:      'On your shelf.',
+    wishlist:   'Want to buy it.',
+    researched: 'Looked into it — undecided. Use Notes for what you found.'
+  };
+  let formStatus = 'owned', formBookStatus = 'owned';   // '' = no month filter; otherwise 'YYYY-MM'
   let pendingConfirm = null;
 
   // ---------- Tag colors ----------
@@ -1359,7 +1380,7 @@
   }
   function totalSpent(){
     return movies.reduce((sum,m)=>{
-      if(m.wishlist) return sum;
+      if(!isOwned(m)) return sum;
       return sum + (m.formats||[]).reduce((s,f)=> s + (parseFloat(f.price)||0), 0);
     },0);
   }
@@ -1368,7 +1389,7 @@
   }
   function totalBookSpent(){
     return books.reduce((sum,b)=>{
-      if(b.wishlist) return sum;
+      if(!isOwned(b)) return sum;
       return sum + bookPriceOf(b);
     },0);
   }
@@ -1396,15 +1417,17 @@
   }
 
   function renderBookStats(){
-    const owned = books.filter(b=>!b.wishlist);
-    const wish = books.filter(b=>b.wishlist).length;
+    const owned = books.filter(isOwned);
+    const wish = books.filter(isWishlisted).length;
+    const researched = books.filter(isResearched).length;
     const spent = totalBookSpent();
     const fmtCount = t => owned.filter(b=>(b.formats||[]).some(f=>f.type===t)).length;
     const rated = owned.filter(b=> b.publicRating);
     const avg = rated.length ? (rated.reduce((s,b)=> s + b.publicRating, 0) / rated.length).toFixed(1) : null;
     let html = `
       <div class="stat-pill"><span class="num">${owned.length}</span><span class="label">Owned</span></div>
-      <div class="stat-pill"><span class="num">${wish}</span><span class="label">Wishlist</span></div>
+      <div class="stat-pill"><span class="num">${wish}</span><span class="label">Wishlist</span></div>${researched ? `
+      <div class="stat-pill"><span class="num">${researched}</span><span class="label">Researched</span></div>` : ''}
       <div class="stat-pill"><span class="num">$${spent.toFixed(0)}</span><span class="label">Spent</span></div>
       <div class="stat-pill"><span class="num">${fmtCount('Hardcover')}</span><span class="label">Hardcover</span></div>
       <div class="stat-pill"><span class="num">${fmtCount('Paperback')}</span><span class="label">Paperback</span></div>
@@ -1417,8 +1440,9 @@
 
   function renderStats(){
     if(currentMode === 'books'){ renderBookStats(); return; }
-    const owned = movies.filter(m=>!m.wishlist);
-    const wish = movies.filter(m=>m.wishlist).length;
+    const owned = movies.filter(isOwned);
+    const wish = movies.filter(isWishlisted).length;
+    const researched = movies.filter(isResearched).length;
     const spent = totalSpent();
     const fmtCount = t => owned.filter(m=>(m.formats||[]).some(f=>f.type===t)).length;
     const totalMin = owned.reduce((s,m)=> s + (m.runtime || 0), 0);
@@ -1426,7 +1450,8 @@
     const avg = rated.length ? (rated.reduce((s,m)=> s + (m.imdbRating || m.tmdbRating), 0) / rated.length).toFixed(1) : null;
     let html = `
       <div class="stat-pill"><span class="num">${owned.length}</span><span class="label">Owned</span></div>
-      <div class="stat-pill"><span class="num">${wish}</span><span class="label">Wishlist</span></div>
+      <div class="stat-pill"><span class="num">${wish}</span><span class="label">Wishlist</span></div>${researched ? `
+      <div class="stat-pill"><span class="num">${researched}</span><span class="label">Researched</span></div>` : ''}
       <div class="stat-pill"><span class="num">$${spent.toFixed(0)}</span><span class="label">Spent</span></div>
       <div class="stat-pill"><span class="num">${fmtCount('4K UHD')}</span><span class="label">4K</span></div>
       <div class="stat-pill"><span class="num">${fmtCount('Blu-ray')}</span><span class="label">Blu-ray</span></div>
@@ -1441,8 +1466,9 @@
 
   function getFiltered(){
     let list = movies.slice();
-    if(filterMode === 'owned') list = list.filter(m=>!m.wishlist);
-    if(filterMode === 'wishlist') list = list.filter(m=>m.wishlist);
+    if(filterMode === 'owned') list = list.filter(isOwned);
+    if(filterMode === 'researched') list = list.filter(isResearched);
+    if(filterMode === 'wishlist') list = list.filter(isWishlisted);
     if(activeFormatFilters.size){
       list = list.filter(m => (m.formats||[]).some(f => activeFormatFilters.has(f.type)));
     }
@@ -1479,8 +1505,9 @@
 
   function getFilteredBooks(){
     let list = books.slice();
-    if(filterMode === 'owned') list = list.filter(b=>!b.wishlist);
-    if(filterMode === 'wishlist') list = list.filter(b=>b.wishlist);
+    if(filterMode === 'owned') list = list.filter(isOwned);
+    if(filterMode === 'researched') list = list.filter(isResearched);
+    if(filterMode === 'wishlist') list = list.filter(isWishlisted);
     if(activeBookFormatFilters.size){
       list = list.filter(b => (b.formats||[]).some(f => activeBookFormatFilters.has(f.type)));
     }
@@ -1522,7 +1549,7 @@
   function formatAverages(){
     const sums = {}, counts = {};
     FORMAT_TYPES.forEach(t=>{ sums[t] = 0; counts[t] = 0; });
-    movies.filter(m=>!m.wishlist).forEach(m=>{
+    movies.filter(isOwned).forEach(m=>{
       (m.formats||[]).forEach(f=>{
         if(sums.hasOwnProperty(f.type)){ sums[f.type] += (parseFloat(f.price)||0); counts[f.type]++; }
       });
@@ -1540,7 +1567,7 @@
   }
   function spendByMonth(){
     const sums = {};
-    movies.filter(m=>!m.wishlist).forEach(m=>{
+    movies.filter(isOwned).forEach(m=>{
       const bucket = monthBucket(m);
       if(!bucket) return;
       sums[bucket] = (sums[bucket]||0) + priceOf(m);
@@ -1574,13 +1601,13 @@
     return MONTH_NAMES[parseInt(mo,10)-1] + " '" + y.slice(2);
   }
   function bookWishlistTotal(){
-    const targets = books.filter(b=> b.wishlist && b.amazonPrice);
+    const targets = books.filter(b=> isWishlisted(b) && b.amazonPrice);
     return { total: targets.reduce((s,b)=> s + b.amazonPrice, 0), count: targets.length };
   }
   function bookFormatAverages(){
     const sums = {}, counts = {};
     BOOK_FORMAT_TYPES.forEach(t=>{ sums[t] = 0; counts[t] = 0; });
-    books.filter(b=>!b.wishlist).forEach(b=>{
+    books.filter(isOwned).forEach(b=>{
       (b.formats||[]).forEach(f=>{
         if(sums.hasOwnProperty(f.type)){ sums[f.type] += (parseFloat(f.price)||0); counts[f.type]++; }
       });
@@ -1598,7 +1625,7 @@
   }
   function bookSpendByMonth(){
     const sums = {};
-    books.filter(b=>!b.wishlist).forEach(b=>{
+    books.filter(isOwned).forEach(b=>{
       const bucket = bookMonthBucket(b);
       if(!bucket) return;
       sums[bucket] = (sums[bucket]||0) + bookPriceOf(b);
@@ -1655,6 +1682,11 @@
     }
   }
 
+  function statusRibbon(x){
+    if(isResearched(x)) return '<div class="wishlist-ribbon ribbon-researched">RESEARCHED</div>';
+    if(isWishlisted(x)) return '<div class="wishlist-ribbon">WISHLIST</div>';
+    return '';
+  }
   function cardHtml(m){
     const formats = m.formats || [];
     let badges = formats.map(f => `<span class="badge ${FORMAT_CLASS[f.type]}">${escapeHtml(f.type)}</span>`).join('');
@@ -1675,11 +1707,12 @@
     return `
       <div class="movie-card${owns4k ? ' owns-4k' : ''}" data-id="${m.id}">
         <div class="card-hole"></div>
-        ${m.wishlist ? '<div class="wishlist-ribbon">WISHLIST</div>' : ''}
+        ${statusRibbon(m)}
         ${posterBlock}
         <div class="card-body">
           <div>
             <div class="card-title">${escapeHtml(m.title)}</div>
+            ${m.director ? `<div class="card-year card-director">${escapeHtml(m.director)}</div>` : ''}
             <div class="card-year-row">
               <div class="card-year">${[
                 (m.year && m.releaseMonth) ? (MONTH_NAMES[m.releaseMonth-1] + ' ' + m.year) : (m.year || ''),
@@ -1692,7 +1725,7 @@
           <div class="badges">${badges}</div>
           ${m.rating ? `<div class="stars-row">${stars}</div>` : ''}
           <div class="card-footer">
-            <span class="price-tag">${(!m.wishlist && price>0) ? '$'+price.toFixed(2) : ''}${upgradeChip}</span>
+            <span class="price-tag">${(isOwned(m) && price>0) ? '$'+price.toFixed(2) : ''}${upgradeChip}</span>
             <span style="display:flex; gap:4px;">${tags}</span>
           </div>
         </div>
@@ -1714,7 +1747,7 @@
     const badges = formats.map(f => `<span class="badge ${BOOK_FORMAT_CLASS[f.type]}">${escapeHtml(f.type)}</span>`).join('');
     const stars = [1,2,3,4,5].map(i => `<span class="star-static ${i<=(b.rating||0)?'filled':''}">★</span>`).join('');
     const price = bookPriceOf(b);
-    const amazonChip = (b.wishlist && b.amazonPrice) ? `<span class="upgrade-chip">AMZN $${b.amazonPrice.toFixed(2)}</span>` : '';
+    const amazonChip = (!isOwned(b) && b.amazonPrice) ? `<span class="upgrade-chip">AMZN $${b.amazonPrice.toFixed(2)}</span>` : '';
     const tags = (b.tags||[]).slice(0,2).map(t=>`<span class="tag-pill-mini" style="${tagStyle(t)}">${escapeHtml(t)}</span>`).join('');
     const letter = (b.title||'?').charAt(0).toUpperCase();
     const posterSrc = b.posterData || b.posterUrl || '';
@@ -1725,7 +1758,7 @@
     return `
       <div class="movie-card" data-id="${b.id}">
         <div class="card-hole"></div>
-        ${b.wishlist ? '<div class="wishlist-ribbon">WISHLIST</div>' : ''}
+        ${statusRibbon(b)}
         ${posterBlock}
         <div class="card-body">
           <div>
@@ -1743,7 +1776,7 @@
           <div class="badges">${badges}</div>
           ${b.rating ? `<div class="stars-row">${stars}</div>` : ''}
           <div class="card-footer">
-            <span class="price-tag">${(!b.wishlist && price>0) ? '$'+price.toFixed(2) : ''}${amazonChip}</span>
+            <span class="price-tag">${(isOwned(b) && price>0) ? '$'+price.toFixed(2) : ''}${amazonChip}</span>
             <span style="display:flex; gap:4px;">${tags}</span>
           </div>
         </div>
@@ -1955,14 +1988,20 @@
     return any ? any.certification : '';
   }
   let extrasSeq = 0;
+  // TMDB lists every crew member; co-directed films get both names joined.
+  function directorOf(d){
+    const crew = (d && d.credits && d.credits.crew) || [];
+    return crew.filter(c => c.job === 'Director').map(c => c.name).filter(Boolean).join(', ');
+  }
+
   async function fetchMovieExtras(tmdbId, tmdbVote){
     const seq = ++extrasSeq;
     formTmdbRating = (tmdbVote || tmdbVote === 0) ? Math.round(tmdbVote * 10) / 10 : null;
-    formRuntime = null; formImdbRating = null; formImdbId = ''; formContentRating = '';
+    formRuntime = null; formImdbRating = null; formImdbId = ''; formContentRating = ''; formDirector = '';
     if(!tmdbId) return;
     try{
       const [dres, crres] = await Promise.all([
-        fetch('https://api.themoviedb.org/3/movie/' + tmdbId + '?api_key=' + encodeURIComponent(tmdbKey())),
+        fetch('https://api.themoviedb.org/3/movie/' + tmdbId + '?api_key=' + encodeURIComponent(tmdbKey()) + '&append_to_response=credits'),
         fetch('https://api.themoviedb.org/3/movie/' + tmdbId + '/release_dates?api_key=' + encodeURIComponent(tmdbKey()))
       ]);
       const d = await dres.json();
@@ -1970,6 +2009,7 @@
       if(seq !== extrasSeq) return;
       formRuntime = d.runtime || null;
       formImdbId = d.imdb_id || '';
+      formDirector = directorOf(d);
       formContentRating = extractUSCertification(cr);
       if(formImdbId && omdbKey()){
         const or = await fetch('https://www.omdbapi.com/?apikey=' + encodeURIComponent(omdbKey()) + '&i=' + encodeURIComponent(formImdbId));
@@ -1987,7 +2027,7 @@
     const dupe = t ? books.find(b => b.id !== editingBookId && (b.title || '').trim().toLowerCase() === t) : null;
     if(dupe){
       const fmts = (dupe.formats || []).map(f=>f.type).join(', ');
-      w.textContent = (dupe.wishlist ? '♥ Already on your wishlist' : '✓ Already in your collection') + (fmts ? ' (' + fmts + ')' : '');
+      w.textContent = (isResearched(dupe) ? '◉ Already in Researched' : isWishlisted(dupe) ? '♥ Already on your wishlist' : '✓ Already in your collection') + (fmts ? ' (' + fmts + ')' : '');
       w.classList.add('show');
     } else {
       w.classList.remove('show');
@@ -1999,7 +2039,7 @@
     const dupe = t ? movies.find(m => m.id !== editingId && (m.title || '').trim().toLowerCase() === t) : null;
     if(dupe){
       const fmts = (dupe.formats || []).map(f=>f.type).join(', ');
-      w.textContent = (dupe.wishlist ? '♥ Already on your wishlist' : '✓ Already in your collection') + (fmts ? ' (' + fmts + ')' : '');
+      w.textContent = (isResearched(dupe) ? '◉ Already in Researched' : isWishlisted(dupe) ? '♥ Already on your wishlist' : '✓ Already in your collection') + (fmts ? ' (' + fmts + ')' : '');
       w.classList.add('show');
     } else {
       w.classList.remove('show');
@@ -2037,7 +2077,7 @@
         title: r.title,
         year: r.release_date ? parseInt(r.release_date.slice(0,4)) : null,
         month: r.release_date ? parseInt(r.release_date.slice(5,7)) : null,
-        genres: (r.genre_ids || []).slice(0,3).map(id=>TMDB_GENRES[id]).filter(Boolean),
+        genres: (r.genre_ids || []).slice(0,5).map(id=>TMDB_GENRES[id]).filter(Boolean),
         thumb: r.poster_path ? 'https://image.tmdb.org/t/p/w92' + r.poster_path : '',
         poster: r.poster_path ? 'https://image.tmdb.org/t/p/w342' + r.poster_path : ''
       })).filter(r=>r.title);
@@ -2280,7 +2320,7 @@
   async function handleScan(code){
     const owned = movies.find(m => m.upc && normUpc(m.upc) === normUpc(code));
     if(owned){
-      showToast((owned.wishlist ? '♥ On your wishlist: ' : '✓ You own this: ') + owned.title);
+      showToast((isResearched(owned) ? '◉ In Researched: ' : isWishlisted(owned) ? '♥ On your wishlist: ' : '✓ You own this: ') + owned.title);
       openEditModal(owned.id);
       return;
     }
@@ -2304,7 +2344,7 @@
     const isbn = normUpc(code);
     const owned = books.find(b => b.isbn && normUpc(b.isbn) === isbn);
     if(owned){
-      showToast((owned.wishlist ? '♥ On your wishlist: ' : '✓ You own this: ') + owned.title);
+      showToast((isResearched(owned) ? '◉ In Researched: ' : isWishlisted(owned) ? '♥ On your wishlist: ' : '✓ You own this: ') + owned.title);
       openBookEditModal(owned.id);
       return;
     }
@@ -2489,7 +2529,7 @@
     formPosterUrl = '';
     pendingUpc = '';
     formRuntime = null; formImdbRating = null; formTmdbRating = null; formImdbId = '';
-    $('releaseMonthSelect').value = ''; formContentRating = '';
+    $('releaseMonthSelect').value = ''; formContentRating = ''; formDirector = '';
     extrasSeq++; // cancel any in-flight extras fetch from a previous form
     checkDuplicate('');
     updatePosterPreview();
@@ -2501,8 +2541,7 @@
     $('upgradePriceInput').value = '';
     $('acquiredDateInput').value = new Date().toISOString().slice(0,10);
     syncAcquiredField(false, false);
-    $('wishlistToggle').checked = false;
-    $('wishlistLabel').textContent = 'I own this';
+    setFormStatus('owned');
     $('notesInput').value = '';
     buildFormatGrid();
     buildStarPicker();
@@ -2534,6 +2573,7 @@
     formImdbId = m.imdbId || '';
     $('releaseMonthSelect').value = m.releaseMonth || '';
     formContentRating = m.contentRating || '';
+    formDirector = m.director || '';
     checkDuplicate(m.title);
     updatePosterPreview();
     $('diSelect').value = m.digitalIntermediate || '';
@@ -2543,9 +2583,7 @@
     $('uhdYearInput').value = m.uhdReleaseYear || '';
     $('upgradePriceInput').value = m.upgradePrice || '';
     $('acquiredDateInput').value = m.acquiredDate || '';
-    syncAcquiredField(!!m.wishlist, false);
-    $('wishlistToggle').checked = !!m.wishlist;
-    $('wishlistLabel').textContent = m.wishlist ? 'On my wishlist' : 'I own this';
+    setFormStatus(statusOf(m), true);
     $('notesInput').value = m.notes || '';
     formFormats = {};
     (m.formats||[]).forEach(f=> formFormats[f.type] = f.price || '');
@@ -2582,9 +2620,17 @@
     }
     el.disabled = isWishlist;
   }
-  $('wishlistToggle').addEventListener('change', e=>{
-    $('wishlistLabel').textContent = e.target.checked ? 'On my wishlist' : 'I own this';
-    syncAcquiredField(e.target.checked, true);
+  // `fromExisting` means we're loading a saved row: never invent an acquired date.
+  function setFormStatus(status, fromExisting){
+    formStatus = status;
+    $('statusPicker').querySelectorAll('button').forEach(b=>
+      b.classList.toggle('active', b.dataset.status === status));
+    $('statusHint').textContent = STATUS_HINT[status];
+    syncAcquiredField(status !== 'owned', !fromExisting);
+  }
+  $('statusPicker').addEventListener('click', e=>{
+    const btn = e.target.closest('button'); if(!btn) return;
+    setFormStatus(btn.dataset.status);
   });
 
   $('movieForm').addEventListener('submit', async e=>{
@@ -2606,14 +2652,16 @@
       imdbId: formImdbId,
       releaseMonth: $('releaseMonthSelect').value ? parseInt($('releaseMonthSelect').value) : null,
       contentRating: formContentRating,
+      director: formDirector,
       digitalIntermediate: $('diSelect').value,
       hdrType: $('hdrSelect').value,
       audioFormats: $('audioFormatSelect').value ? [$('audioFormatSelect').value] : [],
       aspectRatio: $('aspectRatioSelect').value,
       uhdReleaseYear: $('uhdYearInput').value ? parseInt($('uhdYearInput').value) : null,
       upgradePrice: $('upgradePriceInput').value ? parseFloat($('upgradePriceInput').value) : null,
-      acquiredDate: $('wishlistToggle').checked ? '' : $('acquiredDateInput').value,
-      wishlist: $('wishlistToggle').checked,
+      acquiredDate: formStatus === 'owned' ? $('acquiredDateInput').value : '',
+      wishlist: formStatus === 'wishlist',
+      researched: formStatus === 'researched',
       formats,
       rating: formRating,
       tags: formTags.slice(),
@@ -2756,8 +2804,7 @@
     $('bookAcquiredDateInput').value = new Date().toISOString().slice(0,10);
     syncBookAcquiredField(false, false);
     $('amazonPriceInput').value = '';
-    $('bookWishlistToggle').checked = false;
-    $('bookWishlistLabel').textContent = 'I own this';
+    setBookFormStatus('owned');
     $('readStatusSelect').value = '';
     $('bookNotesInput').value = '';
     buildBookFormatGrid();
@@ -2792,10 +2839,8 @@
     checkBookDuplicate(b.title);
     updateBookPosterPreview();
     $('bookAcquiredDateInput').value = b.acquiredDate || '';
-    syncBookAcquiredField(!!b.wishlist, false);
     $('amazonPriceInput').value = b.amazonPrice || '';
-    $('bookWishlistToggle').checked = !!b.wishlist;
-    $('bookWishlistLabel').textContent = b.wishlist ? 'On my wishlist' : 'I own this';
+    setBookFormStatus(statusOf(b), true);
     $('readStatusSelect').value = b.readStatus || '';
     $('bookNotesInput').value = b.notes || '';
     formBookFormats = {};
@@ -2830,9 +2875,16 @@
     }
     el.disabled = isWishlist;
   }
-  $('bookWishlistToggle').addEventListener('change', e=>{
-    $('bookWishlistLabel').textContent = e.target.checked ? 'On my wishlist' : 'I own this';
-    syncBookAcquiredField(e.target.checked, true);
+  function setBookFormStatus(status, fromExisting){
+    formBookStatus = status;
+    $('bookStatusPicker').querySelectorAll('button').forEach(b=>
+      b.classList.toggle('active', b.dataset.status === status));
+    $('bookStatusHint').textContent = STATUS_HINT[status];
+    syncBookAcquiredField(status !== 'owned', !fromExisting);
+  }
+  $('bookStatusPicker').addEventListener('click', e=>{
+    const btn = e.target.closest('button'); if(!btn) return;
+    setBookFormStatus(btn.dataset.status);
   });
 
   $('bookForm').addEventListener('submit', async e=>{
@@ -2853,9 +2905,10 @@
       publicRating: formBookPublicRating,
       publicRatingCount: formBookPublicRatingCount,
       readStatus: $('readStatusSelect').value,
-      acquiredDate: $('bookWishlistToggle').checked ? '' : $('bookAcquiredDateInput').value,
+      acquiredDate: formBookStatus === 'owned' ? $('bookAcquiredDateInput').value : '',
       amazonPrice: $('amazonPriceInput').value ? parseFloat($('amazonPriceInput').value) : null,
-      wishlist: $('bookWishlistToggle').checked,
+      wishlist: formBookStatus === 'wishlist',
+      researched: formBookStatus === 'researched',
       formats,
       rating: formBookRating,
       tags: formBookTags.slice(),
@@ -2983,7 +3036,7 @@
 
   // ---------- Backfill: fetch missing runtime/ratings/posters/month/content-rating for old entries ----------
   function needsBackfill(m){
-    return !m.runtime || !m.imdbId || !m.tmdbRating || !m.releaseMonth || !m.contentRating
+    return !m.runtime || !m.imdbId || !m.tmdbRating || !m.releaseMonth || !m.contentRating || !m.director
       || (omdbKey() && !m.imdbRating)
       || (!m.posterUrl && !m.posterData);
   }
@@ -2991,7 +3044,7 @@
   async function backfillOne(m){
     let changed = false;
     try{
-      if(!m.runtime || !m.imdbId || !m.tmdbRating || !m.year || !m.releaseMonth || !m.contentRating || (!m.posterUrl && !m.posterData)){
+      if(!m.runtime || !m.imdbId || !m.tmdbRating || !m.year || !m.releaseMonth || !m.contentRating || !m.director || (!m.posterUrl && !m.posterData)){
         const url = 'https://api.themoviedb.org/3/search/movie?api_key=' + encodeURIComponent(tmdbKey())
           + '&query=' + encodeURIComponent(m.title)
           + (m.year ? '&year=' + m.year : '') + '&include_adult=false';
@@ -3003,11 +3056,12 @@
           if(!m.posterUrl && !m.posterData && sr.poster_path){ m.posterUrl = 'https://image.tmdb.org/t/p/w342' + sr.poster_path; changed = true; }
           if(!m.year && sr.release_date){ m.year = parseInt(sr.release_date.slice(0,4)); changed = true; }
           if(!m.releaseMonth && sr.release_date){ const mo = parseInt(sr.release_date.slice(5,7)); if(mo){ m.releaseMonth = mo; changed = true; } }
-          if(!m.runtime || !m.imdbId || !m.contentRating){
-            const dres = await fetch('https://api.themoviedb.org/3/movie/' + sr.id + '?api_key=' + encodeURIComponent(tmdbKey()));
+          if(!m.runtime || !m.imdbId || !m.contentRating || !m.director){
+            const dres = await fetch('https://api.themoviedb.org/3/movie/' + sr.id + '?api_key=' + encodeURIComponent(tmdbKey()) + '&append_to_response=credits');
             const d = await dres.json();
             if(!m.runtime && d.runtime){ m.runtime = d.runtime; changed = true; }
             if(!m.imdbId && d.imdb_id){ m.imdbId = d.imdb_id; changed = true; }
+            if(!m.director){ const dir = directorOf(d); if(dir){ m.director = dir; changed = true; } }
             if(!m.contentRating){
               const crres = await fetch('https://api.themoviedb.org/3/movie/' + sr.id + '/release_dates?api_key=' + encodeURIComponent(tmdbKey()));
               const cr = await crres.json();
@@ -3174,7 +3228,7 @@
   });
 
   function renderStatsDashboard(){
-    const owned = movies.filter(m=>!m.wishlist);
+    const owned = movies.filter(isOwned);
     let html = '';
 
     const up = upgradeTotal();
@@ -3252,7 +3306,7 @@
   }
 
   function renderBookStatsDashboard(){
-    const owned = books.filter(b=>!b.wishlist);
+    const owned = books.filter(isOwned);
     let html = '';
 
     const wt = bookWishlistTotal();
@@ -3351,7 +3405,8 @@
     const infoLine = [yearMonth, m.runtime ? fmtRuntime(m.runtime) : null].filter(Boolean).join(' · ');
 
     let badges = '';
-    if(m.wishlist) badges += `<span class="rating-badge" style="color:var(--wishlist); border-color:var(--wishlist);">WISHLIST</span>`;
+    if(isWishlisted(m)) badges += `<span class="rating-badge" style="color:var(--wishlist); border-color:var(--wishlist);">WISHLIST</span>`;
+    if(isResearched(m)) badges += `<span class="rating-badge" style="color:var(--researched); border-color:var(--researched);">RESEARCHED</span>`;
     if(m.contentRating) badges += `<span class="rating-badge">${escapeHtml(m.contentRating)}</span>`;
     if(m.digitalIntermediate === '4K Native'){ const c=badgeColor('4K Native'); badges += `<span class="badge quality" style="color:${c}">4K NATIVE</span>`; }
     if((m.audioFormats||[]).some(a=>/atmos/i.test(a))){ const c=badgeColor('Atmos'); badges += `<span class="badge quality" style="color:${c}">ATMOS</span>`; }
@@ -3361,6 +3416,7 @@
       ${posterBlock}
       <div class="detail-header-info">
         <div class="card-year">${escapeHtml(infoLine)}</div>
+        ${m.director ? `<div class="card-year card-director">${escapeHtml(m.director)}</div>` : ''}
         ${scoreRow(m)}
         <div class="detail-badges">${badges}</div>
       </div>
@@ -3446,7 +3502,8 @@
     const infoLine = [b.publishYear || '', b.pageCount ? b.pageCount + ' pages' : null].filter(Boolean).join(' · ');
 
     let badges = '';
-    if(b.wishlist) badges += `<span class="rating-badge" style="color:var(--wishlist); border-color:var(--wishlist);">WISHLIST</span>`;
+    if(isWishlisted(b)) badges += `<span class="rating-badge" style="color:var(--wishlist); border-color:var(--wishlist);">WISHLIST</span>`;
+    if(isResearched(b)) badges += `<span class="rating-badge" style="color:var(--researched); border-color:var(--researched);">RESEARCHED</span>`;
     if(b.readStatus) badges += `<span class="rating-badge">${escapeHtml(READ_STATUS_LABEL[b.readStatus]||b.readStatus)}</span>`;
 
     let html = `<div class="detail-header-row">
@@ -3459,7 +3516,7 @@
       </div>
     </div>`;
 
-    if(b.wishlist && b.amazonPrice){
+    if(!isOwned(b) && b.amazonPrice){
       html += '<div class="color-section-title">Amazon Price</div>';
       html += `<div class="avg-price-row"><span>Last checked</span><span class="avg-num">$${b.amazonPrice.toFixed(2)}</span></div>`;
     }
