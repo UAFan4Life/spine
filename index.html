@@ -154,6 +154,34 @@
     padding:6px 14px; border-radius:999px; font-size:13px; font-weight:600;
   }
   .segmented button.active{background:var(--accent); color:#14141a;}
+  /* ---------- Seasons editor ---------- */
+  .season-block{
+    border:1px solid var(--border); border-radius:var(--radius-sm);
+    padding:10px 12px 12px; margin-bottom:10px; background:var(--surface-2);
+  }
+  .season-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; gap:8px;}
+  .season-num{display:flex; align-items:center; gap:7px; font-family:var(--font-display); font-size:19px; letter-spacing:1px;}
+  .season-num input{
+    width:58px; background:var(--surface); border:1px solid var(--border); color:var(--text);
+    border-radius:6px; padding:4px 7px; font-family:var(--font-mono); font-size:14px; text-align:center;
+  }
+  .season-remove{
+    background:none; border:none; color:var(--text-faint); font-size:15px; padding:3px 7px; border-radius:6px;
+  }
+  .season-remove:hover{color:var(--danger); background:rgba(217,99,90,0.1);}
+  .season-acq{display:flex; align-items:center; gap:8px; margin-top:8px;}
+  .season-acq label{font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.5px;}
+  .season-acq input{
+    flex:1; background:var(--surface); border:1px solid var(--border); color:var(--text);
+    border-radius:6px; padding:7px 9px; font-size:13px;
+  }
+  .season-empty{color:var(--text-faint); font-size:13px; margin:0 0 10px;}
+  .add-season-btn{
+    width:100%; background:var(--surface-2); border:1px dashed var(--border);
+    color:var(--text-dim); border-radius:var(--radius-sm); padding:10px; font-size:13.5px; font-weight:600;
+  }
+  .add-season-btn:hover{border-color:var(--accent); color:var(--accent-light);}
+  .season-count{font-family:var(--font-mono); font-size:12.5px; color:var(--text-dim);}
   .status-picker{width:100%;}
   .status-picker button{flex:1; white-space:nowrap;}
   .status-picker button.active[data-status="wishlist"]{background:var(--wishlist); color:#1a1013;}
@@ -595,6 +623,15 @@
   }
   .confirm-box h3{margin:0 0 8px; font-family:var(--font-display); font-size:20px; letter-spacing:.5px;}
   .confirm-box p{margin:0 0 16px; font-size:13.5px; color:var(--text-dim); line-height:1.5;}
+  .confirm-pin{margin:14px 0 4px;}
+  .confirm-pin label{display:block; font-size:12px; color:var(--text-dim); margin-bottom:6px;}
+  .confirm-pin input{
+    width:100%; background:var(--surface-2); border:1px solid var(--border);
+    color:var(--text); border-radius:var(--radius-sm); padding:10px 12px;
+    font-family:var(--font-mono); font-size:18px; letter-spacing:4px; text-align:center;
+  }
+  .confirm-pin input:focus{border-color:var(--accent);}
+  .pin-error{margin-top:6px; font-size:12px; color:var(--danger);}
   .confirm-actions{display:flex; gap:10px;}
 
   .visually-hidden{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0);}
@@ -661,6 +698,7 @@
       <div class="wordmark">SPINE<span class="dot">.</span></div>
       <div class="mode-toggle" id="modeToggle">
         <button class="mode-btn active" data-appmode="movies">Movies</button>
+        <button class="mode-btn" data-appmode="shows">TV</button>
         <button class="mode-btn" data-appmode="books">Books</button>
       </div>
       <div class="header-actions">
@@ -697,6 +735,12 @@
         <button class="chip fmt-bluray" data-fmt="Blu-ray">Blu-ray</button>
         <button class="chip fmt-dvd" data-fmt="DVD">DVD</button>
         <button class="chip fmt-digital" data-fmt="Digital">Digital</button>
+      </div>
+      <div class="chip-scroll" id="showFormatChips" style="display:none;">
+        <button class="chip fmt-4k" data-sfmt="4K UHD">4K UHD</button>
+        <button class="chip fmt-bluray" data-sfmt="Blu-ray">Blu-ray</button>
+        <button class="chip fmt-dvd" data-sfmt="DVD">DVD</button>
+        <button class="chip fmt-digital" data-sfmt="Digital">Digital</button>
       </div>
       <div class="chip-scroll" id="bookFormatChips" style="display:none;">
         <button class="chip fmt-hardcover" data-bfmt="Hardcover">Hardcover</button>
@@ -744,6 +788,7 @@
   <input type="file" id="importFile" accept="application/json" class="visually-hidden">
   <input type="file" id="posterFile" accept="image/*" class="visually-hidden">
   <input type="file" id="bookPosterFile" accept="image/*" class="visually-hidden">
+  <input type="file" id="showPosterFile" accept="image/*" class="visually-hidden">
 
   <!-- Add/Edit Modal -->
   <div class="modal-overlay" id="modalOverlay">
@@ -896,6 +941,99 @@
           <button type="submit" class="btn btn-primary" id="saveBtn">Save</button>
         </div>
         <button type="button" class="btn-danger-outline" id="deleteBtn" style="display:none;">Delete this entry</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add/Edit TV Show Modal -->
+  <div class="modal-overlay" id="showModalOverlay">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <div class="modal-title" id="showModalTitle">Add TV Show</div>
+        <button class="icon-btn" id="closeShowModalBtn" aria-label="Close">✕</button>
+      </div>
+      <form id="showForm">
+        <div class="form-group lookup-wrap">
+          <label for="showTitleInput">Title</label>
+          <input type="text" id="showTitleInput" required placeholder="start typing to search…" autocomplete="off">
+          <div class="lookup-results" id="showLookupResults"></div>
+          <div class="dupe-warn" id="showDupeWarn"></div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="showYearInput">First aired</label>
+            <input type="number" id="showYearInput" placeholder="2008" min="1930" max="2100">
+          </div>
+          <div class="form-group">
+            <label for="showCreatorInput">Created by</label>
+            <input type="text" id="showCreatorInput" placeholder="Vince Gilligan">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Box art</label>
+          <div class="poster-picker">
+            <img id="showPosterPreview" alt="" style="display:none;">
+            <button type="button" class="poster-pick-btn" id="showPosterPickBtn">＋ Add image</button>
+            <button type="button" class="poster-remove-btn" id="showPosterRemoveBtn" style="display:none;" aria-label="Remove image">✕</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Status</label>
+          <div class="segmented status-picker" id="showStatusPicker">
+            <button type="button" data-status="owned" class="active">Owned</button>
+            <button type="button" data-status="wishlist">Wishlist</button>
+            <button type="button" data-status="researched">Researched</button>
+          </div>
+          <div class="toggle-sub" id="showStatusHint" style="margin-top:6px;">On your shelf.</div>
+        </div>
+
+        <div class="form-group" id="showVerdictGroup" hidden>
+          <label for="showVerdictSelect">After research, I should…</label>
+          <select class="field-select" id="showVerdictSelect">
+            <option value="">— haven't decided</option>
+            <option value="4k">Grab / upgrade to 4K</option>
+            <option value="bluray">Stick with Blu-ray</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Seasons <span class="season-count" id="seasonCount"></span></label>
+          <div id="seasonsWrap"></div>
+          <button type="button" class="add-season-btn" id="addSeasonBtn">＋ Add a season</button>
+        </div>
+
+        <div class="form-group">
+          <label>Your rating</label>
+          <div class="star-picker" id="showStarPicker"></div>
+        </div>
+
+        <div class="form-group">
+          <label for="showTagsInput">Tags / genre</label>
+          <div class="pill-input-wrap" id="showTagsWrap">
+            <input type="text" id="showTagsInput" placeholder="type & press enter…" list="tagSuggestions">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="showCollectionsInput">Collection</label>
+          <div class="pill-input-wrap" id="showCollectionsWrap">
+            <input type="text" id="showCollectionsInput" placeholder="e.g. HBO, Steelbooks…" list="collectionSuggestions">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="showNotesInput">Notes</label>
+          <textarea id="showNotesInput" placeholder="e.g. S1 is DVD-only in the US; UK set has the Blu-rays"></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="showCancelBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="showSaveBtn">Save</button>
+        </div>
+        <button type="button" class="btn-danger-outline" id="showDeleteBtn" style="display:none;">Delete this entry</button>
       </form>
     </div>
   </div>
@@ -1072,6 +1210,12 @@
     <div class="confirm-box">
       <h3 id="confirmTitle">Are you sure?</h3>
       <p id="confirmText"></p>
+      <div class="confirm-pin" id="confirmPinRow" hidden>
+        <label for="confirmPin">Enter your PIN to continue</label>
+        <input type="password" id="confirmPin" inputmode="numeric" autocomplete="off"
+               maxlength="12" placeholder="••••••">
+        <div class="pin-error" id="confirmPinError" hidden>Wrong PIN.</div>
+      </div>
       <div class="confirm-actions">
         <button class="btn btn-secondary" id="confirmCancel">Cancel</button>
         <button class="btn" id="confirmOk" style="background:var(--danger); color:#fff;">Confirm</button>
@@ -1113,6 +1257,10 @@
   let activeBookFormatFilters = new Set();
   let activeReadStatusFilters = new Set();
   let activeBookCollection = '';
+  let shows = [];
+  let activeShowFormatFilters = new Set();
+  let activeShowCollection = '';
+  let unsubShows = null;
   let editingBookId = null;
   let formBookFormats = {};
   let formBookRating = 0;
@@ -1306,6 +1454,62 @@
     }, ()=> setSyncState('error'));
   }
 
+  // ---------- TV shows: storage & sync (mirrors the movie functions above) ----------
+  const SHOWS_STORAGE_KEY = 'shows-collection';
+  function showCol(){ return fbDb.collection('users').doc(fbUser.uid).collection('shows'); }
+  async function loadShows(){
+    if(cloudOn()) return;
+    try{
+      const raw = localStorage.getItem(SHOWS_STORAGE_KEY);
+      shows = raw ? JSON.parse(raw) : [];
+    }catch(e){ shows = []; }
+    render();
+  }
+  async function saveShows(silent){
+    if(!cloudOn()){
+      localStorage.setItem(SHOWS_STORAGE_KEY, JSON.stringify(shows));
+      if(!silent) showToast('Saved');
+    }
+  }
+  async function firstSyncMergeShows(){
+    try{
+      const snap = await showCol().get();
+      const cloudIds = new Set(snap.docs.map(d=>d.id));
+      const localRaw = localStorage.getItem(SHOWS_STORAGE_KEY);
+      const local = localRaw ? JSON.parse(localRaw) : [];
+      const toUpload = local.filter(x=>x && x.id && !cloudIds.has(x.id));
+      for(let i=0; i<toUpload.length; i+=450){
+        const batch = fbDb.batch();
+        toUpload.slice(i, i+450).forEach(x=> batch.set(showCol().doc(x.id), x));
+        await batch.commit();
+      }
+    }catch(e){ setSyncState('error'); }
+  }
+  function subscribeShows(){
+    unsubShows = showCol().onSnapshot(snap=>{
+      shows = snap.docs.map(d=>d.data());
+      try{ localStorage.setItem(SHOWS_STORAGE_KEY, JSON.stringify(shows)); }catch(e){}
+      setSyncState('ok');
+      render();
+    }, ()=> setSyncState('error'));
+  }
+
+  // A season carries its own discs and its own acquired date; everything a show-level
+  // filter needs (price, formats, months) is derived from the seasons below.
+  function showSeasons(sh){ return Array.isArray(sh.seasons) ? sh.seasons : []; }
+  function showPriceOf(sh){
+    return showSeasons(sh).reduce((sum,se)=>
+      sum + (se.formats||[]).reduce((s2,f)=> s2 + (parseFloat(f.price)||0), 0), 0);
+  }
+  function showFormatTypes(sh){
+    const set = new Set();
+    showSeasons(sh).forEach(se=> (se.formats||[]).forEach(f=> set.add(f.type)));
+    return [...set];
+  }
+  function showAcquiredMonths(sh){
+    return showSeasons(sh).map(se=> (se.acquiredDate||'').slice(0,7)).filter(Boolean);
+  }
+
   // ---------- Books: storage & sync (mirrors the movie functions above) ----------
   const BOOKS_STORAGE_KEY = 'books-collection';
   function bookCol(){ return fbDb.collection('users').doc(fbUser.uid).collection('books'); }
@@ -1452,6 +1656,7 @@
   }
 
   function renderStats(){
+    if(currentMode === 'shows'){ renderShowStats(); return; }
     if(currentMode === 'books'){ renderBookStats(); return; }
     const owned = movies.filter(isOwned);
     const wish = movies.filter(isWishlisted).length;
@@ -1514,6 +1719,40 @@
   }
   function priceOf(m){
     return (m.formats||[]).reduce((s,f)=> s + (parseFloat(f.price)||0), 0);
+  }
+
+  function getFilteredShows(){
+    let list = shows.slice();
+    if(filterMode === 'owned') list = list.filter(isOwned);
+    if(filterMode === 'wishlist') list = list.filter(isWishlisted);
+    if(filterMode === 'researched') list = list.filter(isResearched);
+    if(activeShowFormatFilters.size){
+      list = list.filter(sh => showFormatTypes(sh).some(t => activeShowFormatFilters.has(t)));
+    }
+    if(activeShowCollection){
+      list = list.filter(sh => (sh.collections||[]).includes(activeShowCollection));
+    }
+    if(activeAcquiredMonth){
+      list = list.filter(sh => showAcquiredMonths(sh).includes(activeAcquiredMonth));
+    }
+    if(searchQuery.trim()){
+      const q = searchQuery.trim().toLowerCase();
+      list = list.filter(sh =>
+        (sh.title||'').toLowerCase().includes(q) ||
+        (sh.creator||'').toLowerCase().includes(q) ||
+        (sh.tags||[]).some(t=>t.toLowerCase().includes(q)) ||
+        (sh.collections||[]).some(c=>c.toLowerCase().includes(q))
+      );
+    }
+    switch(sortBy){
+      case 'title': list.sort((a,b)=>(a.title||'').localeCompare(b.title||'')); break;
+      case 'year-new': list.sort((a,b)=> (b.firstAirYear||0) - (a.firstAirYear||0)); break;
+      case 'year-old': list.sort((a,b)=> (a.firstAirYear||9999) - (b.firstAirYear||9999)); break;
+      case 'price-high': list.sort((a,b)=> showPriceOf(b) - showPriceOf(a)); break;
+      case 'rating': list.sort((a,b)=> (b.rating||0) - (a.rating||0)); break;
+      default: list.sort((a,b)=> (b.dateAdded||0) - (a.dateAdded||0));
+    }
+    return list;
   }
 
   function getFilteredBooks(){
@@ -1591,9 +1830,10 @@
   // NOT fall back to dateAdded the way monthBucket does: this filter is about what you
   // recorded buying, not when the row happened to be created.
   function acquiredMonths(){
-    const src = currentMode === 'books' ? books : movies;
+    const src = currentMode === 'books' ? books : currentMode === 'shows' ? shows : movies;
     const set = new Set();
-    src.forEach(x=>{ if(x.acquiredDate) set.add(x.acquiredDate.slice(0,7)); });
+    if(currentMode === 'shows') src.forEach(sh=> showAcquiredMonths(sh).forEach(m=> set.add(m)));
+    else src.forEach(x=>{ if(x.acquiredDate) set.add(x.acquiredDate.slice(0,7)); });
     return [...set].sort((a,b)=> b.localeCompare(a));
   }
   function acquiredMonthLabel(ym){
@@ -1647,6 +1887,7 @@
   }
 
   function renderMovies(){
+    if(currentMode === 'shows'){ renderShowsGrid(); return; }
     if(currentMode === 'books'){ renderBooksGrid(); return; }
     const grid = $('movieGrid');
     const list = getFiltered();
@@ -1681,6 +1922,11 @@
         ? `<div class="empty-state">
             <div class="em-title">Your shelf is empty</div>
             <p>Tap the + button to log your first book — owned copies or something on your wishlist.</p>
+          </div>`
+        : currentMode === 'shows'
+        ? `<div class="empty-state">
+            <div class="em-title">Your shelf is empty</div>
+            <p>Tap the + button to log your first show — add a season for each set you own or want.</p>
           </div>`
         : `<div class="empty-state">
             <div class="em-title">Your shelf is empty</div>
@@ -1807,6 +2053,88 @@
       </div>`;
   }
 
+  function showCardHtml(sh){
+    const types = showFormatTypes(sh);
+    let badges = types.map(t => `<span class="badge ${FORMAT_CLASS[t]}">${escapeHtml(t)}</span>`).join('');
+    badges += verdictChip(sh);
+    const stars = [1,2,3,4,5].map(i => `<span class="star-static ${i<=(sh.rating||0)?'filled':''}">★</span>`).join('');
+    const price = showPriceOf(sh);
+    const seasons = showSeasons(sh).length;
+    const tags = (sh.tags||[]).slice(0,2).map(t=>`<span class="tag-pill-mini" style="${tagStyle(t)}">${escapeHtml(t)}</span>`).join('');
+    const letter = (sh.title||'?').charAt(0).toUpperCase();
+    const posterSrc = sh.posterData || sh.posterUrl || '';
+    const posterBlock = posterSrc
+      ? `<img class="poster" src="${escapeHtml(posterSrc)}" alt="" data-letter="${escapeHtml(letter)}">`
+      : `<div class="poster-placeholder">${escapeHtml(letter)}</div>`;
+    const owns4k = types.includes('4K UHD');
+    return `
+      <div class="movie-card${owns4k ? ' owns-4k' : ''}" data-id="${sh.id}">
+        <div class="card-hole"></div>
+        ${statusRibbon(sh)}
+        ${posterBlock}
+        <div class="card-body">
+          <div>
+            <div class="card-title">${escapeHtml(sh.title)}</div>
+            ${sh.creator ? `<div class="card-year card-director">${escapeHtml(sh.creator)}</div>` : ''}
+            <div class="card-year-row">
+              <div class="card-year">${[
+                sh.firstAirYear || '',
+                seasons ? seasons + (seasons === 1 ? ' season' : ' seasons') : null
+              ].filter(Boolean).join(' · ')}</div>
+              ${sh.contentRating ? `<span class="rating-badge">${escapeHtml(sh.contentRating)}</span>` : ''}
+            </div>
+            ${scoreRow(sh)}
+          </div>
+          <div class="badges">${badges}</div>
+          ${sh.rating ? `<div class="stars-row">${stars}</div>` : ''}
+          <div class="card-footer">
+            <span class="price-tag">${(isOwned(sh) && price>0) ? '$'+price.toFixed(2) : ''}</span>
+            <span style="display:flex; gap:4px;">${tags}</span>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderShowsGrid(){
+    const grid = $('movieGrid');
+    const list = getFilteredShows();
+    if(shows.length === 0){ showEmptyState('shelf'); return; }
+    if(list.length === 0){ showEmptyState('filter'); return; }
+    grid.style.display = '';
+    grid.innerHTML = list.map(sh => showCardHtml(sh)).join('');
+    grid.querySelectorAll('.movie-card').forEach(card=>{
+      card.addEventListener('click', ()=> openShowDetailModal(card.dataset.id));
+    });
+    grid.querySelectorAll('img.poster').forEach(img=>{
+      img.addEventListener('error', ()=>{
+        const ph = document.createElement('div');
+        ph.className = 'poster-placeholder';
+        ph.textContent = img.dataset.letter || '?';
+        img.replaceWith(ph);
+      });
+    });
+  }
+
+  function renderShowStats(){
+    const owned = shows.filter(isOwned);
+    const wish = shows.filter(isWishlisted).length;
+    const researched = shows.filter(isResearched).length;
+    const spent = shows.filter(isOwned).reduce((s,sh)=> s + showPriceOf(sh), 0);
+    const seasonTotal = owned.reduce((s,sh)=> s + showSeasons(sh).length, 0);
+    const fmtCount = t => owned.filter(sh=> showFormatTypes(sh).includes(t)).length;
+    let html = `
+      <div class="stat-pill"><span class="num">${owned.length}</span><span class="label">Owned</span></div>
+      <div class="stat-pill"><span class="num">${seasonTotal}</span><span class="label">Seasons</span></div>
+      <div class="stat-pill"><span class="num">${wish}</span><span class="label">Wishlist</span></div>${researched ? `
+      <div class="stat-pill"><span class="num">${researched}</span><span class="label">Researched</span></div>` : ''}
+      <div class="stat-pill"><span class="num">$${spent.toFixed(0)}</span><span class="label">Spent</span></div>
+      <div class="stat-pill"><span class="num">${fmtCount('4K UHD')}</span><span class="label">4K</span></div>
+      <div class="stat-pill"><span class="num">${fmtCount('Blu-ray')}</span><span class="label">Blu-ray</span></div>
+      <div class="stat-pill"><span class="num">${fmtCount('DVD')}</span><span class="label">DVD</span></div>
+      <div class="stat-pill"><span class="num">${fmtCount('Digital')}</span><span class="label">Digital</span></div>`;
+    $('statsStrip').innerHTML = html;
+  }
+
   function renderBooksGrid(){
     const grid = $('movieGrid');
     const list = getFilteredBooks();
@@ -1833,7 +2161,20 @@
     });
   }
 
+  function allShowCollections(){
+    const set = new Set();
+    shows.forEach(sh=> (sh.collections||[]).forEach(c=> set.add(c)));
+    return [...set].sort();
+  }
   function renderCollectionChips(){
+    if(currentMode === 'shows'){
+      const cols = allShowCollections();
+      if(activeShowCollection && !cols.includes(activeShowCollection)) activeShowCollection = '';
+      $('collectionChips').innerHTML = cols.map(c=>
+        `<button class="chip coll ${c === activeShowCollection ? 'active' : ''}" style="${collectionStyle(c)}" data-coll="${escapeHtml(c)}">${escapeHtml(c)}</button>`
+      ).join('');
+      return;
+    }
     if(currentMode === 'books'){
       const series = allSeries();
       if(activeBookCollection && !series.includes(activeBookCollection)) activeBookCollection = '';
@@ -1848,9 +2189,18 @@
       `<button class="chip coll ${c === activeCollection ? 'active' : ''}" style="${collectionStyle(c)}" data-coll="${escapeHtml(c)}">${escapeHtml(c)}</button>`
     ).join('');
   }
+  $('showFormatChips').addEventListener('click', e=>{
+    const btn = e.target.closest('button'); if(!btn) return;
+    const t = btn.dataset.sfmt;
+    if(activeShowFormatFilters.has(t)) activeShowFormatFilters.delete(t); else activeShowFormatFilters.add(t);
+    btn.classList.toggle('active', activeShowFormatFilters.has(t));
+    renderMovies();
+  });
   $('collectionChips').addEventListener('click', e=>{
     const btn = e.target.closest('button'); if(!btn) return;
-    if(currentMode === 'books'){
+    if(currentMode === 'shows'){
+      activeShowCollection = (activeShowCollection === btn.dataset.coll) ? '' : btn.dataset.coll;
+    } else if(currentMode === 'books'){
       activeBookCollection = (activeBookCollection === btn.dataset.coll) ? '' : btn.dataset.coll;
     } else {
       activeCollection = (activeCollection === btn.dataset.coll) ? '' : btn.dataset.coll;
@@ -1889,7 +2239,7 @@
     renderStats();
     renderCollectionChips();
     renderAcquiredMonths();
-    if(currentMode !== 'books') renderRatingChips();
+    if(currentMode === 'movies') renderRatingChips();
     renderMovies();
     updateSuggestionLists();
   }
@@ -1897,8 +2247,9 @@
   function updateSuggestionLists(){
     // tags/genre and collections/series share one suggestion pool each, so typing in either
     // surfaces values already used on the other side — this is what actually prevents near-duplicates
-    const tagPool = [...new Set([...allTags(), ...allGenres()])].sort();
-    const collPool = [...new Set([...allCollections(), ...allSeries()])].sort();
+    const showTags = []; shows.forEach(sh=> (sh.tags||[]).forEach(t=> showTags.push(t)));
+    const tagPool = [...new Set([...allTags(), ...allGenres(), ...showTags])].sort();
+    const collPool = [...new Set([...allCollections(), ...allSeries(), ...allShowCollections()])].sort();
     const tagOptions = tagPool.map(t=>`<option value="${escapeHtml(t)}">`).join('');
     const collOptions = collPool.map(c=>`<option value="${escapeHtml(c)}">`).join('');
     $('tagSuggestions').innerHTML = tagOptions;
@@ -1959,22 +2310,26 @@
     if(mode === currentMode) return;
     currentMode = mode;
     $('modeToggle').querySelectorAll('.mode-btn').forEach(b=> b.classList.toggle('active', b.dataset.appmode === mode));
-    const isBooks = mode === 'books';
-    $('formatChips').style.display = isBooks ? 'none' : '';
-    $('ratingChips').style.display = isBooks ? 'none' : '';
+    const isBooks = mode === 'books', isShows = mode === 'shows', isMovies = mode === 'movies';
+    $('formatChips').style.display = isMovies ? '' : 'none';
+    $('ratingChips').style.display = isMovies ? '' : 'none';
+    $('showFormatChips').style.display = isShows ? '' : 'none';
     $('bookFormatChips').style.display = isBooks ? '' : 'none';
     $('readStatusChips').style.display = isBooks ? '' : 'none';
-    $('tmdbKeyBtn').style.display = isBooks ? 'none' : '';
+    $('tmdbKeyBtn').style.display = isBooks ? 'none' : '';      // TMDB covers movies and TV
     $('omdbKeyBtn').style.display = isBooks ? 'none' : '';
-    $('searchInput').placeholder = isBooks ? 'Search title, author, genre, series…' : 'Search title, tag, or collection…';
+    $('searchInput').placeholder = isBooks ? 'Search title, author, genre, series…'
+      : isShows ? 'Search title, creator, tag, or collection…'
+      : 'Search title, tag, or collection…';
     searchQuery = '';
     $('searchInput').value = '';
     activeAcquiredMonth = '';
     activeFormatFilters.clear();
     activeRatingFilters.clear();
+    activeShowFormatFilters.clear();
     activeBookFormatFilters.clear();
     activeReadStatusFilters.clear();
-    document.querySelectorAll('#formatChips .chip, #bookFormatChips .chip, #readStatusChips .chip').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('#formatChips .chip, #showFormatChips .chip, #bookFormatChips .chip, #readStatusChips .chip').forEach(b=>b.classList.remove('active'));
     render();
   }
   $('modeToggle').addEventListener('click', e=>{
@@ -2303,7 +2658,8 @@
             if(navigator.vibrate) navigator.vibrate(80);
             const code = codes[0].rawValue;
             closeScanner();
-            if(currentMode === 'books') handleBookScan(code); else handleScan(code);
+            if(currentMode === 'shows') showToast('Barcode lookup is not wired up for TV yet', true);
+            else if(currentMode === 'books') handleBookScan(code); else handleScan(code);
             return;
           }
         }catch(e){}
@@ -2730,6 +3086,253 @@
     });
   });
 
+  // ---------- TV show modal ----------
+  let editingShowId = null;
+  let formShowSeasons = [];          // [{num, formats:[{type,price}], acquiredDate}]
+  let formShowRating = 0, formShowTags = [], formShowCollections = [];
+  let formShowPosterUrl = '', formShowPosterData = '';
+  let formShowStatus = 'owned';
+  let formShowTmdbRating = null, formShowImdbRating = null, formShowImdbId = '', formShowContentRating = '';
+
+  function buildSeasonsEditor(){
+    const wrap = $('seasonsWrap');
+    $('seasonCount').textContent = formShowSeasons.length ? '— ' + formShowSeasons.length + ' added' : '';
+    if(!formShowSeasons.length){
+      wrap.innerHTML = '<p class="season-empty">No seasons yet. Add one for each season or box set you own or want.</p>';
+      return;
+    }
+    wrap.innerHTML = formShowSeasons.map(function(se,i){
+      const fmts = se.formats || [];
+      const opts = FORMAT_TYPES.map(function(type){
+        const hit = fmts.find(function(f){ return f.type===type; });
+        const on = !!hit;
+        return '<div class="format-option ' + (on?'on':'') + '">' +
+          '<label class="format-toggle"><input type="checkbox" ' + (on?'checked':'') +
+          ' data-si="' + i + '" data-sfmt-toggle="' + type + '"> ' + type + '</label>' +
+          '<div class="format-price"><input type="number" step="0.01" min="0" placeholder="Price paid" value="' +
+          (on ? (hit.price||'') : '') + '" data-si="' + i + '" data-sfmt-price="' + type + '"></div></div>';
+      }).join('');
+      return '<div class="season-block">' +
+        '<div class="season-head">' +
+          '<span class="season-num">Season <input type="number" min="0" max="99" value="' + se.num + '" data-si="' + i + '" data-season-num></span>' +
+          '<button type="button" class="season-remove" data-si="' + i + '" data-season-remove aria-label="Remove season">✕</button>' +
+        '</div>' +
+        '<div class="format-grid">' + opts + '</div>' +
+        '<div class="season-acq"><label for="sacq' + i + '">Acquired</label>' +
+        '<input type="date" id="sacq' + i + '" value="' + (se.acquiredDate||'') + '" data-si="' + i + '" data-season-acq ' +
+        (formShowStatus==='owned' ? '' : 'disabled') + '></div>' +
+      '</div>';
+    }).join('');
+
+    wrap.querySelectorAll('[data-sfmt-toggle]').forEach(function(cb){
+      cb.addEventListener('change', function(e){
+        const i = +e.target.dataset.si, type = e.target.dataset.sfmtToggle;
+        const se = formShowSeasons[i];
+        se.formats = se.formats || [];
+        if(e.target.checked){
+          if(!se.formats.find(function(f){ return f.type===type; })) se.formats.push({type:type, price:''});
+        } else {
+          se.formats = se.formats.filter(function(f){ return f.type!==type; });
+        }
+        buildSeasonsEditor();
+      });
+    });
+    wrap.querySelectorAll('[data-sfmt-price]').forEach(function(inp){
+      inp.addEventListener('input', function(e){
+        const i = +e.target.dataset.si, type = e.target.dataset.sfmtPrice;
+        const f = (formShowSeasons[i].formats||[]).find(function(f){ return f.type===type; });
+        if(f) f.price = e.target.value;
+      });
+    });
+    wrap.querySelectorAll('[data-season-num]').forEach(function(inp){
+      inp.addEventListener('input', function(e){ formShowSeasons[+e.target.dataset.si].num = e.target.value; });
+    });
+    wrap.querySelectorAll('[data-season-acq]').forEach(function(inp){
+      inp.addEventListener('input', function(e){ formShowSeasons[+e.target.dataset.si].acquiredDate = e.target.value; });
+    });
+    wrap.querySelectorAll('[data-season-remove]').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        formShowSeasons.splice(+e.currentTarget.dataset.si, 1);
+        buildSeasonsEditor();
+      });
+    });
+  }
+
+  $('addSeasonBtn').addEventListener('click', function(){
+    const nums = formShowSeasons.map(function(s){ return parseInt(s.num,10)||0; });
+    const next = nums.length ? Math.max.apply(null, nums) + 1 : 1;
+    formShowSeasons.push({num:String(next), formats:[], acquiredDate:''});
+    buildSeasonsEditor();
+  });
+
+  function buildShowStarPicker(){
+    $('showStarPicker').innerHTML = [1,2,3,4,5].map(function(i){
+      return '<button type="button" class="' + (i<=formShowRating?'filled':'') + '" data-star="' + i + '">★</button>';
+    }).join('') + '<button type="button" class="clear-stars" data-star="0">clear</button>';
+    $('showStarPicker').querySelectorAll('button').forEach(function(b){
+      b.addEventListener('click', function(){ formShowRating = parseInt(b.dataset.star,10); buildShowStarPicker(); });
+    });
+  }
+
+  function updateShowPosterPreview(){
+    const src = formShowPosterData || formShowPosterUrl;
+    const img = $('showPosterPreview');
+    if(src){
+      img.src = src; img.style.display = '';
+      $('showPosterRemoveBtn').style.display = ''; $('showPosterPickBtn').style.display = 'none';
+    } else {
+      img.removeAttribute('src'); img.style.display = 'none';
+      $('showPosterRemoveBtn').style.display = 'none'; $('showPosterPickBtn').style.display = '';
+    }
+  }
+
+  // A wishlisted or researched show hasn't been bought, so no season carries a date.
+  function setShowFormStatus(status, fromExisting){
+    formShowStatus = status;
+    $('showStatusPicker').querySelectorAll('button').forEach(function(b){
+      b.classList.toggle('active', b.dataset.status === status);
+    });
+    $('showStatusHint').textContent = STATUS_HINT[status];
+    $('showVerdictGroup').hidden = (status === 'owned');
+    if(status !== 'owned') formShowSeasons.forEach(function(se){ se.acquiredDate = ''; });
+    buildSeasonsEditor();
+  }
+  $('showStatusPicker').addEventListener('click', function(e){
+    const btn = e.target.closest('button'); if(!btn) return;
+    setShowFormStatus(btn.dataset.status);
+  });
+
+  function resetShowForm(){
+    editingShowId = null;
+    $('showModalTitle').textContent = 'Add TV Show';
+    $('showTitleInput').value = ''; $('showYearInput').value = ''; $('showCreatorInput').value = '';
+    $('showNotesInput').value = ''; $('showVerdictSelect').value = '';
+    formShowSeasons = []; formShowRating = 0; formShowTags = []; formShowCollections = [];
+    formShowPosterUrl = ''; formShowPosterData = '';
+    formShowTmdbRating = null; formShowImdbRating = null; formShowImdbId = ''; formShowContentRating = '';
+    $('showDupeWarn').classList.remove('show');
+    $('showDeleteBtn').style.display = 'none';
+    buildShowStarPicker();
+    buildPills('showTagsWrap', formShowTags, 'showTagsInput');
+    buildPills('showCollectionsWrap', formShowCollections, 'showCollectionsInput');
+    updateShowPosterPreview();
+    setShowFormStatus('owned');
+  }
+  function openAddShowModal(){
+    resetShowForm();
+    $('showModalOverlay').classList.add('open');
+    setTimeout(function(){ $('showTitleInput').focus(); }, 50);
+  }
+  function openShowEditModal(id){
+    const sh = shows.find(function(x){ return x.id===id; });
+    if(!sh) return;
+    resetShowForm();
+    editingShowId = id;
+    $('showModalTitle').textContent = 'Edit TV Show';
+    $('showTitleInput').value = sh.title || '';
+    $('showYearInput').value = sh.firstAirYear || '';
+    $('showCreatorInput').value = sh.creator || '';
+    $('showNotesInput').value = sh.notes || '';
+    $('showVerdictSelect').value = sh.verdict || '';
+    formShowPosterUrl = sh.posterUrl || ''; formShowPosterData = sh.posterData || '';
+    formShowRating = sh.rating || 0;
+    formShowTags = (sh.tags||[]).slice();
+    formShowCollections = (sh.collections||[]).slice();
+    formShowTmdbRating = (typeof sh.tmdbRating === 'number') ? sh.tmdbRating : null;
+    formShowImdbRating = (typeof sh.imdbRating === 'number') ? sh.imdbRating : null;
+    formShowImdbId = sh.imdbId || ''; formShowContentRating = sh.contentRating || '';
+    formShowSeasons = showSeasons(sh).map(function(se){
+      return {num:String(se.num), formats:(se.formats||[]).map(function(f){ return {type:f.type, price:f.price}; }), acquiredDate:se.acquiredDate||''};
+    });
+    buildShowStarPicker();
+    buildPills('showTagsWrap', formShowTags, 'showTagsInput');
+    buildPills('showCollectionsWrap', formShowCollections, 'showCollectionsInput');
+    updateShowPosterPreview();
+    setShowFormStatus(statusOf(sh), true);
+    $('showDeleteBtn').style.display = 'block';
+    $('showModalOverlay').classList.add('open');
+  }
+  function closeShowModal(){ $('showModalOverlay').classList.remove('open'); }
+  $('closeShowModalBtn').addEventListener('click', closeShowModal);
+  $('showCancelBtn').addEventListener('click', closeShowModal);
+  $('showModalOverlay').addEventListener('click', function(e){ if(e.target === $('showModalOverlay')) closeShowModal(); });
+
+  function checkShowDuplicate(title){
+    const w = $('showDupeWarn');
+    const t = (title || '').trim().toLowerCase();
+    const dupe = t ? shows.find(function(x){ return x.id !== editingShowId && (x.title || '').trim().toLowerCase() === t; }) : null;
+    if(dupe){
+      const n = showSeasons(dupe).length;
+      w.textContent = (isResearched(dupe) ? '◉ Already in Researched' : isWishlisted(dupe) ? '♥ Already on your wishlist' : '✓ Already in your collection')
+        + (n ? ' (' + n + (n===1?' season':' seasons') + ')' : '');
+      w.classList.add('show');
+    } else {
+      w.classList.remove('show');
+    }
+  }
+  $('showTitleInput').addEventListener('input', function(e){ checkShowDuplicate(e.target.value); });
+
+  $('showForm').addEventListener('submit', async function(e){
+    e.preventDefault();
+    const title = $('showTitleInput').value.trim();
+    if(!title) return;
+    const seasons = formShowSeasons.map(function(se){
+      return {
+        num: se.num,
+        formats: (se.formats||[]).map(function(f){ return {type:f.type, price:f.price}; }),
+        acquiredDate: formShowStatus === 'owned' ? (se.acquiredDate || '') : ''
+      };
+    });
+    const existing = editingShowId ? shows.find(function(x){ return x.id===editingShowId; }) : null;
+    const data = {
+      id: editingShowId || ('s' + Date.now() + Math.random().toString(36).slice(2,7)),
+      title: title,
+      firstAirYear: parseInt($('showYearInput').value, 10) || null,
+      creator: $('showCreatorInput').value.trim(),
+      posterUrl: formShowPosterUrl,
+      posterData: formShowPosterData,
+      tmdbRating: formShowTmdbRating,
+      imdbRating: formShowImdbRating,
+      imdbId: formShowImdbId,
+      contentRating: formShowContentRating,
+      seasons: seasons,
+      rating: formShowRating,
+      tags: formShowTags.slice(),
+      collections: formShowCollections.slice(),
+      notes: $('showNotesInput').value.trim(),
+      wishlist: formShowStatus === 'wishlist',
+      researched: formShowStatus === 'researched',
+      verdict: $('showVerdictSelect').value,
+      dateAdded: existing ? (existing.dateAdded || Date.now()) : Date.now()
+    };
+    if(cloudOn()){
+      showCol().doc(data.id).set(data).catch(function(){ setSyncState('error'); });
+      closeShowModal();
+      showToast('Saved');
+      return;
+    }
+    if(existing) shows[shows.indexOf(existing)] = data; else shows.push(data);
+    closeShowModal();
+    render();
+    await saveShows();
+  });
+
+  $('showDeleteBtn').addEventListener('click', function(){
+    if(!editingShowId) return;
+    const delId = editingShowId;
+    askConfirm('Delete this entry?', 'This removes it from your collection permanently.', async function(){
+      if(cloudOn()){
+        showCol().doc(delId).delete().catch(function(){ setSyncState('error'); });
+        closeShowModal();
+        return;
+      }
+      shows = shows.filter(function(x){ return x.id !== delId; });
+      closeShowModal();
+      render();
+      await saveShows();
+    });
+  });
+
   // ---------- Book modal: build helpers ----------
   function buildBookFormatGrid(){
     $('bookFormatGrid').innerHTML = BOOK_FORMAT_TYPES.map(type=>{
@@ -2888,7 +3491,11 @@
 
   function closeBookModal(){ $('bookModalOverlay').classList.remove('open'); }
 
-  $('fabAdd').addEventListener('click', ()=> currentMode === 'books' ? openAddBookModal() : openAddModal());
+  $('fabAdd').addEventListener('click', ()=>{
+    if(currentMode === 'books') return openAddBookModal();
+    if(currentMode === 'shows') return openAddShowModal();
+    openAddModal();
+  });
   $('closeBookModalBtn').addEventListener('click', closeBookModal);
   $('bookCancelBtn').addEventListener('click', closeBookModal);
   $('bookModalOverlay').addEventListener('click', e=>{ if(e.target === $('bookModalOverlay')) closeBookModal(); });
@@ -2977,18 +3584,45 @@
   });
 
   // ---------- Confirm dialog ----------
-  function askConfirm(title, text, onConfirm){
+  // Guards accidental taps on a destructive action. This is a speed bump, not security:
+  // anyone with devtools can read it. Access control is the OWNER_UID check.
+  const CLEAR_ALL_PIN = '123456';
+  let pendingNeedsPin = false;
+
+  function closeConfirm(){
+    $('confirmOverlay').classList.remove('open');
+    $('confirmPin').value = '';
+    $('confirmPinError').hidden = true;
+    $('confirmPinRow').hidden = true;
+    pendingConfirm = null;
+    pendingNeedsPin = false;
+  }
+  function askConfirm(title, text, onConfirm, needsPin){
     $('confirmTitle').textContent = title;
     $('confirmText').textContent = text;
     pendingConfirm = onConfirm;
+    pendingNeedsPin = !!needsPin;
+    $('confirmPin').value = '';
+    $('confirmPinError').hidden = true;
+    $('confirmPinRow').hidden = !needsPin;
     $('confirmOverlay').classList.add('open');
+    if(needsPin) setTimeout(()=> $('confirmPin').focus(), 50);
   }
-  $('confirmCancel').addEventListener('click', ()=>{ $('confirmOverlay').classList.remove('open'); pendingConfirm=null; });
-  $('confirmOk').addEventListener('click', ()=>{
-    $('confirmOverlay').classList.remove('open');
-    if(pendingConfirm) pendingConfirm();
-    pendingConfirm = null;
-  });
+  function runConfirm(){
+    if(pendingNeedsPin && $('confirmPin').value.trim() !== CLEAR_ALL_PIN){
+      $('confirmPinError').hidden = false;
+      $('confirmPin').value = '';
+      $('confirmPin').focus();
+      return;                       // stays open; the action does NOT run
+    }
+    const fn = pendingConfirm;
+    closeConfirm();
+    if(fn) fn();
+  }
+  $('confirmCancel').addEventListener('click', closeConfirm);
+  $('confirmOk').addEventListener('click', runConfirm);
+  $('confirmPin').addEventListener('input', ()=>{ $('confirmPinError').hidden = true; });
+  $('confirmPin').addEventListener('keydown', e=>{ if(e.key === 'Enter'){ e.preventDefault(); runConfirm(); } });
 
   // ---------- Menu: refresh / export / import / clear ----------
   $('menuBtn').addEventListener('click', e=>{
@@ -2999,7 +3633,7 @@
 
   $('exportBtn').addEventListener('click', ()=>{
     $('menuDropdown').classList.remove('open');
-    const blob = new Blob([JSON.stringify({movies, books}, null, 2)], {type:'application/json'});
+    const blob = new Blob([JSON.stringify({movies, books, shows}, null, 2)], {type:'application/json'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = 'spine-backup-' + new Date().toISOString().slice(0,10) + '.json';
@@ -3034,14 +3668,18 @@
         // backward-compatible: old backups are a bare array of movies; new backups are {movies, books}
         const impMovies = Array.isArray(imported) ? imported : (Array.isArray(imported.movies) ? imported.movies : []);
         const impBooks = Array.isArray(imported) ? [] : (Array.isArray(imported.books) ? imported.books : []);
-        if(!impMovies.length && !impBooks.length) throw new Error('bad format');
+        const impShows = Array.isArray(imported) ? [] : (Array.isArray(imported.shows) ? imported.shows : []);
+        if(!impMovies.length && !impBooks.length && !impShows.length) throw new Error('bad format');
         const existingMovieIds = new Set(movies.map(m=>m.id));
         const existingBookIds = new Set(books.map(b=>b.id));
         const freshMovies = impMovies.filter(m=>m && m.id && !existingMovieIds.has(m.id));
         const freshBooks = impBooks.filter(b=>b && b.id && !existingBookIds.has(b.id));
-        askConfirm('Import backup?', `This will add ${freshMovies.length} movie(s) and ${freshBooks.length} book(s), merging with your current collection.`, async ()=>{
+        const existingShowIds = new Set(shows.map(x=>x.id));
+        const freshShows = impShows.filter(x=>x && x.id && !existingShowIds.has(x.id));
+        askConfirm('Import backup?', `This will add ${freshMovies.length} movie(s), ${freshShows.length} TV show(s) and ${freshBooks.length} book(s), merging with your current collection.`, async ()=>{
           await importFreshEntries(freshMovies, movies, userCol, saveMovies);
           await importFreshEntries(freshBooks, books, bookCol, saveBooks);
+          await importFreshEntries(freshShows, shows, showCol, saveShows);
           if(!cloudOn()) render();
         });
       }catch(err){
@@ -3194,6 +3832,7 @@
 
   $('backfillBtn').addEventListener('click', ()=>{
     $('menuDropdown').classList.remove('open');
+    if(currentMode === 'shows'){ showToast('Backfill is not wired up for TV yet', true); return; }
     if(currentMode === 'books') backfillAllBooks(); else backfillAll();
   });
 
@@ -3413,8 +4052,10 @@
 
   $('statsBtn').addEventListener('click', ()=>{
     $('menuDropdown').classList.remove('open');
-    $('statsModalTitle').textContent = currentMode === 'books' ? 'Book Stats' : 'Stats';
-    if(currentMode === 'books'){ renderBookStatsDashboard(); } else { renderStatsDashboard(); }
+    $('statsModalTitle').textContent = currentMode === 'books' ? 'Book Stats' : currentMode === 'shows' ? 'TV Stats' : 'Stats';
+    if(currentMode === 'shows'){ renderShowStatsDashboard(); }
+    else if(currentMode === 'books'){ renderBookStatsDashboard(); }
+    else { renderStatsDashboard(); }
     $('statsOverlay').classList.add('open');
   });
   $('closeStatsBtn').addEventListener('click', ()=> $('statsOverlay').classList.remove('open'));
@@ -3509,16 +4150,242 @@
     if(!m) return;
     renderMovieDetail(m);
     $('detailEditBtn').dataset.id = id;
+    $('detailEditBtn').dataset.type = 'movie';
     $('detailOverlay').classList.add('open');
   }
   $('detailCloseBtn').addEventListener('click', ()=> $('detailOverlay').classList.remove('open'));
   $('closeDetailBtn').addEventListener('click', ()=> $('detailOverlay').classList.remove('open'));
   $('detailOverlay').addEventListener('click', e=>{ if(e.target === $('detailOverlay')) $('detailOverlay').classList.remove('open'); });
   $('detailEditBtn').addEventListener('click', ()=>{
-    const id = $('detailEditBtn').dataset.id;
+    const btn = $('detailEditBtn');
+    const id = btn.dataset.id;
     $('detailOverlay').classList.remove('open');
-    openEditModal(id);
+    if(btn.dataset.type === 'show') openShowEditModal(id); else openEditModal(id);
   });
+
+  // ---------- TV show: box art, pills, lookup, detail ----------
+  $('showPosterPickBtn').addEventListener('click', function(){ $('showPosterFile').click(); });
+  $('showPosterRemoveBtn').addEventListener('click', function(){
+    formShowPosterData = ''; formShowPosterUrl = ''; updateShowPosterPreview();
+  });
+  $('showPosterFile').addEventListener('change', function(e){
+    const file = e.target.files[0];
+    e.target.value = '';
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = function(ev){
+      const img = new Image();
+      img.onload = function(){
+        const scale = Math.min(1, POSTER_MAX_W / img.width);
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        formShowPosterData = canvas.toDataURL('image/jpeg', 0.82);
+        formShowPosterUrl = '';
+        updateShowPosterPreview();
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  setupPillInput('showTagsInput', formShowTags, 'showTagsWrap');
+  setupPillInput('showCollectionsInput', formShowCollections, 'showCollectionsWrap');
+
+  // TMDB uses a different genre list for TV than for film — these ids do not overlap cleanly.
+  const TMDB_TV_GENRES = {10759:'action & adventure',16:'animation',35:'comedy',80:'crime',99:'documentary',18:'drama',10751:'family',10762:'kids',9648:'mystery',10763:'news',10764:'reality',10765:'sci-fi & fantasy',10766:'soap',10767:'talk',10768:'war & politics',37:'western'};
+
+  let showLookupTimer = null, showLookupSeq = 0, showExtrasSeq = 0;
+  function hideShowLookup(){
+    $('showLookupResults').classList.remove('open');
+    $('showLookupResults').innerHTML = '';
+  }
+  function creatorOf(d){
+    return ((d && d.created_by) || []).map(function(c){ return c.name; }).filter(Boolean).join(', ');
+  }
+  function usTvRating(d){
+    const rows = (d && d.content_ratings && d.content_ratings.results) || [];
+    const us = rows.find(function(r){ return r.iso_3166_1 === 'US'; });
+    return us && us.rating ? us.rating : '';
+  }
+  async function fetchShowExtras(tmdbId, vote){
+    const seq = ++showExtrasSeq;
+    formShowTmdbRating = (vote || vote === 0) ? Math.round(vote * 10) / 10 : null;
+    formShowImdbRating = null; formShowImdbId = ''; formShowContentRating = '';
+    if(!tmdbId) return;
+    try{
+      // One call: credits (creator), content_ratings (TV-MA), external_ids (imdb id for OMDb)
+      const res = await fetch('https://api.themoviedb.org/3/tv/' + tmdbId + '?api_key=' + encodeURIComponent(tmdbKey()) + '&append_to_response=content_ratings,external_ids');
+      const d = await res.json();
+      if(seq !== showExtrasSeq) return;
+      if(!$('showCreatorInput').value) $('showCreatorInput').value = creatorOf(d);
+      formShowContentRating = usTvRating(d);
+      formShowImdbId = (d.external_ids && d.external_ids.imdb_id) || '';
+      if(d.number_of_seasons){
+        $('seasonCount').textContent = (formShowSeasons.length ? '— ' + formShowSeasons.length + ' added' : '')
+          + ' (TMDB lists ' + d.number_of_seasons + ')';
+      }
+      if(formShowImdbId && omdbKey()){
+        const or = await fetch('https://www.omdbapi.com/?apikey=' + encodeURIComponent(omdbKey()) + '&i=' + encodeURIComponent(formShowImdbId));
+        const od = await or.json();
+        if(seq !== showExtrasSeq) return;
+        const iv = parseFloat(od.imdbRating);
+        if(!isNaN(iv)) formShowImdbRating = iv;
+      }
+    }catch(e){}
+  }
+  async function runShowLookup(q){
+    const seq = ++showLookupSeq;
+    const box = $('showLookupResults');
+    if(!tmdbKey()){
+      box.innerHTML = '<button type="button" class="lookup-item" id="showLookupKeyHint"><span>🔑 TV lookup needs a free TMDB key — tap to add yours</span></button>';
+      box.classList.add('open');
+      $('showLookupKeyHint').addEventListener('click', function(){ hideShowLookup(); promptTmdbKey(); });
+      return;
+    }
+    try{
+      const res = await fetch('https://api.themoviedb.org/3/search/tv?api_key=' + encodeURIComponent(tmdbKey()) + '&query=' + encodeURIComponent(q) + '&include_adult=false');
+      const data = await res.json();
+      if(seq !== showLookupSeq) return;
+      const results = (data.results || []).slice(0,6).map(function(r){
+        return {
+          id: r.id,
+          vote: (typeof r.vote_average === 'number') ? r.vote_average : null,
+          title: r.name,                                   // TV uses `name`, not `title`
+          year: r.first_air_date ? parseInt(r.first_air_date.slice(0,4)) : null,
+          genres: (r.genre_ids || []).slice(0,5).map(function(id){ return TMDB_TV_GENRES[id]; }).filter(Boolean),
+          thumb: r.poster_path ? 'https://image.tmdb.org/t/p/w92' + r.poster_path : '',
+          poster: r.poster_path ? 'https://image.tmdb.org/t/p/w342' + r.poster_path : ''
+        };
+      }).filter(function(r){ return r.title; });
+      if(!results.length){ hideShowLookup(); return; }
+      box.innerHTML = results.map(function(r,i){
+        return '<button type="button" class="lookup-item" data-i="' + i + '">' +
+          (r.thumb ? '<img src="' + escapeHtml(r.thumb) + '" alt="" loading="lazy">' : '') +
+          '<span>' + escapeHtml(r.title) + ' <span class="li-year">' + (r.year || '') + '</span></span></button>';
+      }).join('');
+      box.classList.add('open');
+      box.querySelectorAll('.lookup-item').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          const r = results[parseInt(btn.dataset.i)];
+          $('showTitleInput').value = r.title;
+          checkShowDuplicate(r.title);
+          fetchShowExtras(r.id, r.vote);
+          if(r.year) $('showYearInput').value = r.year;
+          if(r.poster){ formShowPosterUrl = r.poster; formShowPosterData = ''; updateShowPosterPreview(); }
+          let added = false;
+          r.genres.forEach(function(g){ if(formShowTags.indexOf(g) === -1){ formShowTags.push(g); added = true; } });
+          if(added) buildPills('showTagsWrap', formShowTags, 'showTagsInput');
+          hideShowLookup();
+        });
+      });
+    }catch(e){
+      if(seq === showLookupSeq) hideShowLookup();
+    }
+  }
+  $('showTitleInput').addEventListener('input', function(e){
+    const q = e.target.value.trim();
+    clearTimeout(showLookupTimer);
+    if(q.length < 2){ hideShowLookup(); return; }
+    showLookupTimer = setTimeout(function(){ runShowLookup(q); }, 150);
+  });
+  document.addEventListener('click', function(e){
+    if(!e.target.closest('#showModalOverlay .lookup-wrap')) hideShowLookup();
+  });
+
+  // ---------- TV show detail (reuses the movie detail overlay) ----------
+  function renderShowDetail(sh){
+    $('detailTitle').textContent = sh.title || '';
+    const letter = (sh.title||'?').charAt(0).toUpperCase();
+    const posterSrc = sh.posterData || sh.posterUrl || '';
+    const posterBlock = posterSrc
+      ? '<img class="detail-poster" src="' + escapeHtml(posterSrc) + '" alt="">'
+      : '<div class="detail-poster-placeholder">' + escapeHtml(letter) + '</div>';
+    const seasons = showSeasons(sh);
+    const infoLine = [sh.firstAirYear || '', seasons.length ? seasons.length + (seasons.length===1?' season':' seasons') : null].filter(Boolean).join(' · ');
+
+    let badges = '';
+    if(isWishlisted(sh)) badges += '<span class="rating-badge" style="color:var(--wishlist); border-color:var(--wishlist);">WISHLIST</span>';
+    if(isResearched(sh)) badges += '<span class="rating-badge" style="color:var(--researched); border-color:var(--researched);">RESEARCHED</span>';
+    if(sh.contentRating) badges += '<span class="rating-badge">' + escapeHtml(sh.contentRating) + '</span>';
+    badges += verdictChip(sh);
+
+    let html = '<div class="detail-header-row">' + posterBlock +
+      '<div class="detail-header-info">' +
+        '<div class="card-year">' + escapeHtml(infoLine) + '</div>' +
+        (sh.creator ? '<div class="card-year card-director">' + escapeHtml(sh.creator) + '</div>' : '') +
+        scoreRow(sh) +
+        '<div class="detail-badges">' + badges + '</div>' +
+      '</div></div>';
+
+    html += '<div class="color-section-title">Seasons</div>';
+    if(!seasons.length){
+      html += '<p class="stats-empty">No seasons logged yet.</p>';
+    } else {
+      html += seasons.map(function(se){
+        const fmts = (se.formats||[]);
+        const chips = fmts.length
+          ? fmts.map(function(f){ return '<span class="badge ' + FORMAT_CLASS[f.type] + '">' + escapeHtml(f.type) + (f.price ? ' $' + parseFloat(f.price).toFixed(2) : '') + '</span>'; }).join(' ')
+          : '<span class="tag-pill-mini">no formats</span>';
+        return '<div class="avg-price-row"><span><strong>S' + escapeHtml(String(se.num)) + '</strong> ' + chips + '</span>' +
+               '<span class="avg-num">' + (se.acquiredDate ? escapeHtml(se.acquiredDate) : '—') + '</span></div>';
+      }).join('');
+      const total = showPriceOf(sh);
+      if(isOwned(sh) && total > 0){
+        html += '<div class="avg-price-row"><span><strong>Total</strong></span><span class="avg-num">$' + total.toFixed(2) + '</span></div>';
+      }
+    }
+
+    if((sh.tags||[]).length){
+      html += '<div class="color-section-title">Tags</div><div class="badges">' +
+        sh.tags.map(function(t){ return '<span class="tag-pill-mini" style="' + tagStyle(t) + '">' + escapeHtml(t) + '</span>'; }).join('') + '</div>';
+    }
+    if((sh.collections||[]).length){
+      html += '<div class="color-section-title">Collections</div><div class="badges">' +
+        sh.collections.map(function(c){ return '<span class="tag-pill-mini" style="' + collectionStyle(c) + '">' + escapeHtml(c) + '</span>'; }).join('') + '</div>';
+    }
+    if(sh.notes){
+      html += '<div class="color-section-title">Notes</div><p class="detail-notes">' + escapeHtml(sh.notes) + '</p>';
+    }
+    $('detailContent').innerHTML = html;
+  }
+  function openShowDetailModal(id){
+    const sh = shows.find(function(x){ return x.id===id; });
+    if(!sh) return;
+    renderShowDetail(sh);
+    $('detailEditBtn').dataset.id = id;
+    $('detailEditBtn').dataset.type = 'show';
+    $('detailOverlay').classList.add('open');
+  }
+
+  // ---------- TV stats dashboard ----------
+  function renderShowStatsDashboard(){
+    const owned = shows.filter(isOwned);
+    const seasonTotal = owned.reduce(function(s,sh){ return s + showSeasons(sh).length; }, 0);
+    const spent = owned.reduce(function(s,sh){ return s + showPriceOf(sh); }, 0);
+    let html = '<div class="stat-hero"><div class="hero-num">$' + spent.toFixed(2) + '</div>' +
+      '<div class="hero-label">across ' + owned.length + (owned.length===1?' show':' shows') + ' and ' + seasonTotal + (seasonTotal===1?' season':' seasons') + '</div></div>';
+
+    html += '<div class="color-section-title">Seasons by format</div>';
+    const counts = {};
+    FORMAT_TYPES.forEach(function(t){ counts[t] = 0; });
+    owned.forEach(function(sh){ showSeasons(sh).forEach(function(se){ (se.formats||[]).forEach(function(f){ if(counts.hasOwnProperty(f.type)) counts[f.type]++; }); }); });
+    html += FORMAT_TYPES.map(function(t){
+      return '<div class="avg-price-row"><span class="badge ' + FORMAT_CLASS[t] + '">' + escapeHtml(t) + '</span><span class="avg-num">' + counts[t] + '</span></div>';
+    }).join('');
+
+    const most = owned.slice().sort(function(a,b){ return showSeasons(b).length - showSeasons(a).length; }).slice(0,5);
+    if(most.length){
+      html += '<div class="color-section-title">Deepest shelves</div>';
+      html += most.map(function(sh){
+        const n = showSeasons(sh).length;
+        return '<div class="avg-price-row"><span>' + escapeHtml(sh.title) + '</span><span class="avg-num">' + n + (n===1?' season':' seasons') + '</span></div>';
+      }).join('');
+    }
+    $('statsContent').innerHTML = html;
+  }
 
   // ---------- Book detail ----------
   function renderBookDetail(b){
@@ -3625,39 +4492,32 @@
 
   $('clearAllBtn').addEventListener('click', ()=>{
     $('menuDropdown').classList.remove('open');
-    const isBooks = currentMode === 'books';
-    const noun = isBooks ? 'book collection' : 'movie collection';
-    askConfirm('Clear everything?', `This deletes your entire ${noun} ` + (cloudOn() ? 'from all synced devices.' : 'from this device.') + ' This cannot be undone.', async ()=>{
-      if(isBooks){
+    // Explicit table, no else-fallback: an unrecognised mode must delete NOTHING rather
+    // than quietly falling through to movies.
+    const TARGETS = {
+      movies: {noun:'movie collection', list:()=>movies, col:()=>userCol(),  key:STORAGE_KEY,       clear:()=>{ movies = []; }, save:()=>saveMovies()},
+      shows:  {noun:'TV collection',    list:()=>shows,  col:()=>showCol(),  key:SHOWS_STORAGE_KEY, clear:()=>{ shows  = []; }, save:()=>saveShows()},
+      books:  {noun:'book collection',  list:()=>books,  col:()=>bookCol(),  key:BOOKS_STORAGE_KEY, clear:()=>{ books  = []; }, save:()=>saveBooks()}
+    };
+    const target = TARGETS[currentMode];
+    if(!target){ showToast('Nothing to clear here', true); return; }
+    askConfirm('Clear everything?',
+      `This deletes your entire ${target.noun} ` + (cloudOn() ? 'from all synced devices.' : 'from this device.') + ' This cannot be undone.',
+      async ()=>{
         if(cloudOn()){
-          const ids = books.map(b=>b.id);
+          const ids = target.list().map(x=>x.id);
           for(let i=0; i<ids.length; i+=450){
             const batch = fbDb.batch();
-            ids.slice(i, i+450).forEach(id=> batch.delete(bookCol().doc(id)));
+            ids.slice(i, i+450).forEach(id=> batch.delete(target.col().doc(id)));
             batch.commit().catch(()=> setSyncState('error'));
           }
-          localStorage.removeItem(BOOKS_STORAGE_KEY);
+          localStorage.removeItem(target.key);
           return;
         }
-        books = [];
+        target.clear();
         render();
-        await saveBooks();
-        return;
-      }
-      if(cloudOn()){
-        const ids = movies.map(m=>m.id);
-        for(let i=0; i<ids.length; i+=450){
-          const batch = fbDb.batch();
-          ids.slice(i, i+450).forEach(id=> batch.delete(userCol().doc(id)));
-          batch.commit().catch(()=> setSyncState('error'));
-        }
-        localStorage.removeItem(STORAGE_KEY);
-        return;
-      }
-      movies = [];
-      render();
-      await saveMovies();
-    });
+        await target.save();
+      }, true);
   });
 
   // ---------- Cross-device sync on focus ----------
@@ -3736,21 +4596,26 @@
       updateAuthUI();
       if(unsubMovies){ unsubMovies(); unsubMovies = null; }
       if(unsubBooks){ unsubBooks(); unsubBooks = null; }
+      if(unsubShows){ unsubShows(); unsubShows = null; }
       if(user){
         setSyncState('syncing');
         await firstSyncMerge();
         await firstSyncMergeBooks();
+        await firstSyncMergeShows();
         subscribeMovies();
         subscribeBooks();
+        subscribeShows();
       } else {
         setSyncState('ok');
         loadMovies();
         loadBooks();
+        loadShows();
       }
     });
   } else {
     loadMovies();
     loadBooks();
+    loadShows();
   }
 })();
 </script>
