@@ -483,10 +483,15 @@
   .lookup-results{
     position:absolute; top:100%; left:0; right:0; z-index:5;
     background:var(--surface-2); border:1px solid var(--border);
-    border-radius:var(--radius-sm); overflow:hidden; display:none;
+    border-radius:var(--radius-sm); display:none;
     box-shadow:0 12px 28px rgba(0,0,0,0.45);
+    /* scroll inside the list; contain so flicking it doesn't scroll the modal behind */
+    max-height:50vh; max-height:min(50dvh, 440px);
+    overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch;
   }
   .lookup-results.open{display:block;}
+  .lookup-more{justify-content:center; color:var(--accent-light); font-weight:600;}
+  .lookup-more:disabled{color:var(--text-faint);}
   .lookup-item{
     display:flex; gap:10px; align-items:center; width:100%;
     background:none; border:none; border-bottom:1px solid var(--border-soft);
@@ -2496,11 +2501,67 @@
       w.classList.remove('show');
     }
   }
+  // ---------- Shared paged lookup list ----------
+  // Searches used to keep only the first 6 hits, so a popular franchise could bury the exact
+  // title you wanted. This shows a full page in a scrollable list and fetches further pages
+  // on demand, so any result is reachable no matter how it ranks.
+  //   fetchPage(page) -> Promise<{items, hasMore}>
+  //   rowHtml(item)   -> inner html for one row
+  //   onPick(item)    -> fill the form
+  //   isCurrent()     -> false once a newer search has started
+  //   onEmpty()       -> nothing found
+  function pagedLookup(box, opts){
+    const state = {page:0, items:[], hasMore:false, loading:false};
+
+    function render(){
+      const keepScroll = box.scrollTop;
+      box.innerHTML = state.items.map(function(it, i){
+        return '<button type="button" class="lookup-item" data-i="' + i + '">' + opts.rowHtml(it) + '</button>';
+      }).join('') + (state.hasMore
+        ? '<button type="button" class="lookup-item lookup-more" data-lookup-more><span>Show more results</span></button>'
+        : '');
+      box.classList.add('open');
+      box.scrollTop = keepScroll;          // appending a page must not jump you back to the top
+    }
+
+    async function loadNext(){
+      if(state.loading) return;
+      state.loading = true;
+      const more = box.querySelector('[data-lookup-more]');
+      if(more){ more.disabled = true; more.firstChild.textContent = 'Loading…'; }
+      let res;
+      try{
+        res = await opts.fetchPage(state.page + 1);
+      }catch(e){
+        state.loading = false;
+        if(!opts.isCurrent()) return;
+        if(state.items.length) render(); else opts.onEmpty();
+        return;
+      }
+      if(!opts.isCurrent()) return;        // a newer search superseded this one
+      state.page += 1;
+      state.items = state.items.concat(res.items);
+      state.hasMore = !!res.hasMore;
+      state.loading = false;
+      if(!state.items.length){ opts.onEmpty(); return; }
+      render();
+    }
+
+    // Assigned (not added) so each new search replaces the previous search's handler.
+    box.onclick = function(e){
+      if(e.target.closest('[data-lookup-more]')){ loadNext(); return; }
+      const row = e.target.closest('[data-i]');
+      if(row) opts.onPick(state.items[+row.dataset.i]);
+    };
+    return loadNext();
+  }
+
   let lookupTimer = null;
   let lookupSeq = 0;
   function hideLookup(){
     $('lookupResults').classList.remove('open');
     $('lookupResults').innerHTML = '';
+    $('lookupResults').onclick = null;
   }
   $('titleInput').addEventListener('input', ()=>{
     const q = $('titleInput').value.trim();
@@ -2514,51 +2575,46 @@
     const box = $('lookupResults');
     if(!tmdbKey()){
       box.innerHTML = `<button type="button" class="lookup-item" id="lookupKeyHint"><span>🔑 Movie lookup needs a free TMDB key — tap to add yours</span></button>`;
+      box.onclick = null;
       box.classList.add('open');
       $('lookupKeyHint').addEventListener('click', ()=>{ hideLookup(); promptTmdbKey(); });
       return;
     }
-    try{
-      const res = await fetch('https://api.themoviedb.org/3/search/movie?api_key=' + encodeURIComponent(tmdbKey()) + '&query=' + encodeURIComponent(q) + '&include_adult=false');
-      const data = await res.json();
-      if(seq !== lookupSeq) return; // a newer search superseded this one
-      const results = (data.results || []).slice(0,6).map(r=>({
-        id: r.id,
-        vote: (typeof r.vote_average === 'number') ? r.vote_average : null,
-        title: r.title,
-        year: r.release_date ? parseInt(r.release_date.slice(0,4)) : null,
-        month: r.release_date ? parseInt(r.release_date.slice(5,7)) : null,
-        genres: (r.genre_ids || []).slice(0,5).map(id=>TMDB_GENRES[id]).filter(Boolean),
-        thumb: r.poster_path ? 'https://image.tmdb.org/t/p/w92' + r.poster_path : '',
-        poster: r.poster_path ? 'https://image.tmdb.org/t/p/w342' + r.poster_path : ''
-      })).filter(r=>r.title);
-      if(!results.length){ hideLookup(); return; }
-      box.innerHTML = results.map((r,i)=>`
-        <button type="button" class="lookup-item" data-i="${i}">
-          ${r.thumb ? `<img src="${escapeHtml(r.thumb)}" alt="" loading="lazy">` : ''}
-          <span>${escapeHtml(r.title)} <span class="li-year">${r.year || ''}</span></span>
-        </button>`).join('');
-      box.classList.add('open');
-      box.querySelectorAll('.lookup-item').forEach(btn=>{
-        btn.addEventListener('click', ()=>{
-          const r = results[parseInt(btn.dataset.i)];
-          $('titleInput').value = r.title;
-          checkDuplicate(r.title);
-          fetchMovieExtras(r.id, r.vote);
-          $('releaseMonthSelect').value = r.month || '';
-          if(r.year) $('yearInput').value = r.year;
-          if(r.poster){ formPosterUrl = r.poster; updatePosterPreview(); }
-          let added = false;
-          r.genres.forEach(g=>{
-            if(!formTags.includes(g)){ formTags.push(g); added = true; }
-          });
-          if(added) buildPills('tagsWrap', formTags, 'tagsInput');
-          hideLookup();
+    await pagedLookup(box, {
+      isCurrent: ()=> seq === lookupSeq,
+      onEmpty: hideLookup,          // offline, API hiccup, or no match — manual entry still works
+      fetchPage: async page=>{
+        const res = await fetch('https://api.themoviedb.org/3/search/movie?api_key=' + encodeURIComponent(tmdbKey()) + '&query=' + encodeURIComponent(q) + '&include_adult=false&page=' + page);
+        const data = await res.json();
+        const items = (data.results || []).map(r=>({
+          id: r.id,
+          vote: (typeof r.vote_average === 'number') ? r.vote_average : null,
+          title: r.title,
+          year: r.release_date ? parseInt(r.release_date.slice(0,4)) : null,
+          month: r.release_date ? parseInt(r.release_date.slice(5,7)) : null,
+          genres: (r.genre_ids || []).slice(0,5).map(id=>TMDB_GENRES[id]).filter(Boolean),
+          thumb: r.poster_path ? 'https://image.tmdb.org/t/p/w92' + r.poster_path : '',
+          poster: r.poster_path ? 'https://image.tmdb.org/t/p/w342' + r.poster_path : ''
+        })).filter(r=>r.title);
+        return {items, hasMore: page < (data.total_pages || 0)};
+      },
+      rowHtml: r=>`${r.thumb ? `<img src="${escapeHtml(r.thumb)}" alt="" loading="lazy">` : ''}
+          <span>${escapeHtml(r.title)} <span class="li-year">${r.year || ''}</span></span>`,
+      onPick: r=>{
+        $('titleInput').value = r.title;
+        checkDuplicate(r.title);
+        fetchMovieExtras(r.id, r.vote);
+        $('releaseMonthSelect').value = r.month || '';
+        if(r.year) $('yearInput').value = r.year;
+        if(r.poster){ formPosterUrl = r.poster; updatePosterPreview(); }
+        let added = false;
+        r.genres.forEach(g=>{
+          if(!formTags.includes(g)){ formTags.push(g); added = true; }
         });
-      });
-    }catch(e){
-      if(seq === lookupSeq) hideLookup(); // offline or API hiccup — fail quiet, manual entry still works
-    }
+        if(added) buildPills('tagsWrap', formTags, 'tagsInput');
+        hideLookup();
+      }
+    });
   }
   document.addEventListener('click', e=>{ if(!e.target.closest('.lookup-wrap')) hideLookup(); });
 
@@ -2571,6 +2627,7 @@
   function hideBookLookup(){
     $('bookLookupResults').classList.remove('open');
     $('bookLookupResults').innerHTML = '';
+    $('bookLookupResults').onclick = null;
   }
   $('bookTitleInput').addEventListener('input', ()=>{
     const q = $('bookTitleInput').value.trim();
@@ -2582,55 +2639,51 @@
   async function runBookLookup(q){
     const seq = ++bookLookupSeq;
     const box = $('bookLookupResults');
-    try{
-      const url = 'https://openlibrary.org/search.json?q=' + encodeURIComponent(q)
-        + '&limit=6&fields=title,author_name,first_publish_year,isbn,cover_i,number_of_pages_median,ratings_average,ratings_count,subject';
-      const res = await fetch(url);
-      const data = await res.json();
-      if(seq !== bookLookupSeq) return;
-      const results = (data.docs || []).slice(0,6).map(d=>({
-        title: d.title,
-        author: (d.author_name||[])[0] || '',
-        year: d.first_publish_year || null,
-        isbn13: (d.isbn||[]).find(i=>i.length===13) || (d.isbn||[])[0] || '',
-        pages: d.number_of_pages_median || null,
-        rating: (typeof d.ratings_average === 'number') ? d.ratings_average : null,
-        ratingCount: d.ratings_count || null,
-        genres: cleanSubjects(d.subject),
-        thumb: d.cover_i ? 'https://covers.openlibrary.org/b/id/' + d.cover_i + '-S.jpg' : '',
-        poster: d.cover_i ? 'https://covers.openlibrary.org/b/id/' + d.cover_i + '-L.jpg' : ''
-      })).filter(r=>r.title);
-      if(!results.length){ hideBookLookup(); return; }
-      box.innerHTML = results.map((r,i)=>`
-        <button type="button" class="lookup-item" data-i="${i}">
-          ${r.thumb ? `<img src="${escapeHtml(r.thumb)}" alt="" loading="lazy">` : ''}
-          <span>${escapeHtml(r.title)}${r.author ? ' — ' + escapeHtml(r.author) : ''} <span class="li-year">${r.year || ''}</span></span>
-        </button>`).join('');
-      box.classList.add('open');
-      box.querySelectorAll('.lookup-item').forEach(btn=>{
-        btn.addEventListener('click', ()=>{
-          const r = results[parseInt(btn.dataset.i)];
-          $('bookTitleInput').value = r.title;
-          checkBookDuplicate(r.title);
-          $('authorInput').value = r.author;
-          if(r.year) $('publishYearInput').value = r.year;
-          if(r.pages) $('pageCountInput').value = r.pages;
-          if(r.isbn13) $('isbnInput').value = r.isbn13;
-          if(r.poster){ formBookPosterUrl = r.poster; updateBookPosterPreview(); }
-          formBookPublicRating = r.rating;
-          formBookPublicRatingCount = r.ratingCount;
-          let added = false;
-          r.genres.forEach(g=>{
-            const gl = g.toLowerCase();
-            if(!formBookTags.includes(gl)){ formBookTags.push(gl); added = true; }
-          });
-          if(added) buildPills('genreWrap', formBookTags, 'genreInput');
-          hideBookLookup();
+    const PER = 20;
+    await pagedLookup(box, {
+      isCurrent: ()=> seq === bookLookupSeq,
+      onEmpty: hideBookLookup,
+      fetchPage: async page=>{
+        const url = 'https://openlibrary.org/search.json?q=' + encodeURIComponent(q)
+          + '&limit=' + PER + '&page=' + page
+          + '&fields=title,author_name,first_publish_year,isbn,cover_i,number_of_pages_median,ratings_average,ratings_count,subject';
+        const res = await fetch(url);
+        const data = await res.json();
+        const items = (data.docs || []).map(d=>({
+          title: d.title,
+          author: (d.author_name||[])[0] || '',
+          year: d.first_publish_year || null,
+          isbn13: (d.isbn||[]).find(i=>i.length===13) || (d.isbn||[])[0] || '',
+          pages: d.number_of_pages_median || null,
+          rating: (typeof d.ratings_average === 'number') ? d.ratings_average : null,
+          ratingCount: d.ratings_count || null,
+          genres: cleanSubjects(d.subject),
+          thumb: d.cover_i ? 'https://covers.openlibrary.org/b/id/' + d.cover_i + '-S.jpg' : '',
+          poster: d.cover_i ? 'https://covers.openlibrary.org/b/id/' + d.cover_i + '-L.jpg' : ''
+        })).filter(r=>r.title);
+        return {items, hasMore: page * PER < (data.numFound || 0)};
+      },
+      rowHtml: r=>`${r.thumb ? `<img src="${escapeHtml(r.thumb)}" alt="" loading="lazy">` : ''}
+          <span>${escapeHtml(r.title)}${r.author ? ' — ' + escapeHtml(r.author) : ''} <span class="li-year">${r.year || ''}</span></span>`,
+      onPick: r=>{
+        $('bookTitleInput').value = r.title;
+        checkBookDuplicate(r.title);
+        $('authorInput').value = r.author;
+        if(r.year) $('publishYearInput').value = r.year;
+        if(r.pages) $('pageCountInput').value = r.pages;
+        if(r.isbn13) $('isbnInput').value = r.isbn13;
+        if(r.poster){ formBookPosterUrl = r.poster; updateBookPosterPreview(); }
+        formBookPublicRating = r.rating;
+        formBookPublicRatingCount = r.ratingCount;
+        let added = false;
+        r.genres.forEach(g=>{
+          const gl = g.toLowerCase();
+          if(!formBookTags.includes(gl)){ formBookTags.push(gl); added = true; }
         });
-      });
-    }catch(e){
-      if(seq === bookLookupSeq) hideBookLookup();
-    }
+        if(added) buildPills('genreWrap', formBookTags, 'genreInput');
+        hideBookLookup();
+      }
+    });
   }
   document.addEventListener('click', e=>{ if(!e.target.closest('#bookModalOverlay .lookup-wrap')) hideBookLookup(); });
 
@@ -4500,6 +4553,7 @@
   function hideShowLookup(){
     $('showLookupResults').classList.remove('open');
     $('showLookupResults').innerHTML = '';
+    $('showLookupResults').onclick = null;
   }
   function creatorOf(d){
     return ((d && d.created_by) || []).map(function(c){ return c.name; }).filter(Boolean).join(', ');
@@ -4540,49 +4594,46 @@
     const box = $('showLookupResults');
     if(!tmdbKey()){
       box.innerHTML = '<button type="button" class="lookup-item" id="showLookupKeyHint"><span>🔑 TV lookup needs a free TMDB key — tap to add yours</span></button>';
+      box.onclick = null;
       box.classList.add('open');
       $('showLookupKeyHint').addEventListener('click', function(){ hideShowLookup(); promptTmdbKey(); });
       return;
     }
-    try{
-      const res = await fetch('https://api.themoviedb.org/3/search/tv?api_key=' + encodeURIComponent(tmdbKey()) + '&query=' + encodeURIComponent(q) + '&include_adult=false');
-      const data = await res.json();
-      if(seq !== showLookupSeq) return;
-      const results = (data.results || []).slice(0,6).map(function(r){
-        return {
-          id: r.id,
-          vote: (typeof r.vote_average === 'number') ? r.vote_average : null,
-          title: r.name,                                   // TV uses `name`, not `title`
-          year: r.first_air_date ? parseInt(r.first_air_date.slice(0,4)) : null,
-          genres: (r.genre_ids || []).slice(0,5).map(function(id){ return TMDB_TV_GENRES[id]; }).filter(Boolean),
-          thumb: r.poster_path ? 'https://image.tmdb.org/t/p/w92' + r.poster_path : '',
-          poster: r.poster_path ? 'https://image.tmdb.org/t/p/w342' + r.poster_path : ''
-        };
-      }).filter(function(r){ return r.title; });
-      if(!results.length){ hideShowLookup(); return; }
-      box.innerHTML = results.map(function(r,i){
-        return '<button type="button" class="lookup-item" data-i="' + i + '">' +
-          (r.thumb ? '<img src="' + escapeHtml(r.thumb) + '" alt="" loading="lazy">' : '') +
-          '<span>' + escapeHtml(r.title) + ' <span class="li-year">' + (r.year || '') + '</span></span></button>';
-      }).join('');
-      box.classList.add('open');
-      box.querySelectorAll('.lookup-item').forEach(function(btn){
-        btn.addEventListener('click', function(){
-          const r = results[parseInt(btn.dataset.i)];
-          $('showTitleInput').value = r.title;
-          checkShowDuplicate(r.title);
-          fetchShowExtras(r.id, r.vote);
-          if(r.year) $('showYearInput').value = r.year;
-          if(r.poster){ formShowPosterUrl = r.poster; formShowPosterData = ''; updateShowPosterPreview(); }
-          let added = false;
-          r.genres.forEach(function(g){ if(formShowTags.indexOf(g) === -1){ formShowTags.push(g); added = true; } });
-          if(added) buildPills('showTagsWrap', formShowTags, 'showTagsInput');
-          hideShowLookup();
-        });
-      });
-    }catch(e){
-      if(seq === showLookupSeq) hideShowLookup();
-    }
+    await pagedLookup(box, {
+      isCurrent: function(){ return seq === showLookupSeq; },
+      onEmpty: hideShowLookup,
+      fetchPage: async function(page){
+        const res = await fetch('https://api.themoviedb.org/3/search/tv?api_key=' + encodeURIComponent(tmdbKey()) + '&query=' + encodeURIComponent(q) + '&include_adult=false&page=' + page);
+        const data = await res.json();
+        const items = (data.results || []).map(function(r){
+          return {
+            id: r.id,
+            vote: (typeof r.vote_average === 'number') ? r.vote_average : null,
+            title: r.name,                                   // TV uses `name`, not `title`
+            year: r.first_air_date ? parseInt(r.first_air_date.slice(0,4)) : null,
+            genres: (r.genre_ids || []).slice(0,5).map(function(id){ return TMDB_TV_GENRES[id]; }).filter(Boolean),
+            thumb: r.poster_path ? 'https://image.tmdb.org/t/p/w92' + r.poster_path : '',
+            poster: r.poster_path ? 'https://image.tmdb.org/t/p/w342' + r.poster_path : ''
+          };
+        }).filter(function(r){ return r.title; });
+        return {items: items, hasMore: page < (data.total_pages || 0)};
+      },
+      rowHtml: function(r){
+        return (r.thumb ? '<img src="' + escapeHtml(r.thumb) + '" alt="" loading="lazy">' : '') +
+          '<span>' + escapeHtml(r.title) + ' <span class="li-year">' + (r.year || '') + '</span></span>';
+      },
+      onPick: function(r){
+        $('showTitleInput').value = r.title;
+        checkShowDuplicate(r.title);
+        fetchShowExtras(r.id, r.vote);
+        if(r.year) $('showYearInput').value = r.year;
+        if(r.poster){ formShowPosterUrl = r.poster; formShowPosterData = ''; updateShowPosterPreview(); }
+        let added = false;
+        r.genres.forEach(function(g){ if(formShowTags.indexOf(g) === -1){ formShowTags.push(g); added = true; } });
+        if(added) buildPills('showTagsWrap', formShowTags, 'showTagsInput');
+        hideShowLookup();
+      }
+    });
   }
   $('showTitleInput').addEventListener('input', function(e){
     const q = e.target.value.trim();
