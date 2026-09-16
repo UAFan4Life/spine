@@ -154,6 +154,59 @@
     padding:6px 14px; border-radius:999px; font-size:13px; font-weight:600;
   }
   .segmented button.active{background:var(--accent); color:#14141a;}
+  /* ---------- Price history ---------- */
+  .card-footer-right{display:flex; align-items:center; gap:4px;}
+  .price-hist-btn{
+    background:var(--surface-2); border:1px solid var(--border); color:var(--text-faint);
+    border-radius:6px; padding:2px 5px; line-height:0; flex:0 0 auto;
+  }
+  .price-hist-btn svg{width:13px; height:13px; display:block;}
+  .price-hist-btn:hover{color:var(--accent-light); border-color:var(--accent);}
+  .price-hist-btn.has-data{color:var(--accent); border-color:var(--accent);}
+
+  .ph-section{
+    border:1px solid var(--border); border-radius:var(--radius-sm);
+    padding:12px; margin-bottom:12px; background:var(--surface-2);
+  }
+  .ph-head{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px;}
+  .ph-msrp{display:flex; align-items:center; gap:6px;}
+  .ph-msrp label{font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.5px;}
+  .ph-msrp input{
+    width:82px; background:var(--surface); border:1px solid var(--border); color:var(--text);
+    border-radius:6px; padding:5px 8px; font-family:var(--font-mono); font-size:13px;
+  }
+  .ph-summary{display:flex; flex-wrap:wrap; gap:8px; margin:8px 0;}
+  .ph-stat{
+    background:var(--surface); border:1px solid var(--border-soft); border-radius:6px;
+    padding:5px 9px; font-family:var(--font-mono); font-size:11.5px; color:var(--text-dim);
+  }
+  .ph-stat b{color:var(--accent-light); font-size:13px;}
+  .ph-stat.low b{color:#5fbf6f;}
+  .ph-spark{width:100%; height:52px; display:block; margin:6px 0 4px;}
+  .ph-obs{display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid var(--border-soft); font-size:12.5px;}
+  .ph-obs:last-child{border-bottom:none;}
+  .ph-obs .o-date{font-family:var(--font-mono); color:var(--text-faint); font-size:11.5px; flex:0 0 auto;}
+  .ph-obs .o-store{flex:1; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .ph-obs .o-price{font-family:var(--font-mono); color:var(--accent-light); font-weight:600;}
+  .ph-obs .o-price.lowest{color:#5fbf6f;}
+  .ph-obs .o-del{background:none; border:none; color:var(--text-faint); padding:2px 5px; border-radius:5px;}
+  .ph-obs .o-del:hover{color:var(--danger); background:rgba(217,99,90,0.1);}
+  .ph-add{display:flex; gap:6px; margin-top:9px; flex-wrap:wrap;}
+  .ph-add input{
+    background:var(--surface); border:1px solid var(--border); color:var(--text);
+    border-radius:6px; padding:7px 8px; font-size:13px; min-width:0;
+  }
+  .ph-add .a-store{flex:2 1 110px;}
+  .ph-add .a-price{flex:1 1 74px; font-family:var(--font-mono);}
+  .ph-add .a-date{flex:1 1 128px;}
+  .ph-add button{
+    background:var(--accent); color:#14141a; border:none; border-radius:6px;
+    padding:7px 13px; font-weight:700; font-size:13px; flex:0 0 auto;
+  }
+  .ph-empty{color:var(--text-faint); font-size:12.5px; margin:4px 0 0;}
+  .ph-addkey{display:flex; gap:6px; margin-top:4px;}
+  .ph-addkey select{flex:1;}
+
   /* ---------- Seasons editor ---------- */
   .season-block{
     border:1px solid var(--border); border-radius:var(--radius-sm);
@@ -1175,6 +1228,25 @@
     </div>
   </div>
 
+  <!-- Price history -->
+  <div class="modal-overlay" id="priceOverlay">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <div class="modal-title" id="priceTitle">Price History</div>
+        <button class="icon-btn" id="closePriceBtn" aria-label="Close">✕</button>
+      </div>
+      <div id="priceContent"></div>
+      <div class="ph-addkey">
+        <select class="field-select" id="priceAddKey"></select>
+        <button type="button" class="btn btn-secondary" id="priceAddKeyBtn">＋ Track</button>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="priceCloseBtn">Done</button>
+      </div>
+    </div>
+  </div>
+  <datalist id="storeSuggestions"></datalist>
+
   <!-- Movie detail -->
   <div class="modal-overlay" id="detailOverlay">
     <div class="modal-panel">
@@ -1996,7 +2068,7 @@
           ${m.rating ? `<div class="stars-row">${stars}</div>` : ''}
           <div class="card-footer">
             <span class="price-tag">${(isOwned(m) && price>0) ? '$'+price.toFixed(2) : ''}${upgradeChip}</span>
-            <span style="display:flex; gap:4px;">${tags}</span>
+            <span class="card-footer-right">${tags}${priceBtnHtml(m)}</span>
           </div>
         </div>
       </div>`;
@@ -2047,7 +2119,7 @@
           ${b.rating ? `<div class="stars-row">${stars}</div>` : ''}
           <div class="card-footer">
             <span class="price-tag">${(isOwned(b) && price>0) ? '$'+price.toFixed(2) : ''}${amazonChip}</span>
-            <span style="display:flex; gap:4px;">${tags}</span>
+            <span class="card-footer-right">${tags}${priceBtnHtml(b)}</span>
           </div>
         </div>
       </div>`;
@@ -2089,7 +2161,7 @@
           ${sh.rating ? `<div class="stars-row">${stars}</div>` : ''}
           <div class="card-footer">
             <span class="price-tag">${(isOwned(sh) && price>0) ? '$'+price.toFixed(2) : ''}</span>
-            <span style="display:flex; gap:4px;">${tags}</span>
+            <span class="card-footer-right">${tags}${priceBtnHtml(sh)}</span>
           </div>
         </div>
       </div>`;
@@ -2762,6 +2834,233 @@
 
   $('scanFab').addEventListener('click', openScanner);
   $('scanCloseBtn').addEventListener('click', closeScanner);
+
+  // ---------- Price history ----------
+  // Stored on the item as { "<key>": { msrp, obs:[{store,price,date}] } }.
+  // Key is the format for movies/books; for TV it is season + format, because a show's
+  // price means nothing without saying which season.
+  let priceCtx = null;   // {type, id}
+
+  function itemsOf(type){ return type === 'movie' ? movies : type === 'show' ? shows : books; }
+  function colOf(type){ return type === 'movie' ? userCol() : type === 'show' ? showCol() : bookCol(); }
+  function saveOf(type){ return type === 'movie' ? saveMovies() : type === 'show' ? saveShows() : saveBooks(); }
+  function findItem(type, id){ return itemsOf(type).find(function(x){ return x.id === id; }); }
+
+  function historyOf(item){
+    return (item && typeof item.priceHistory === 'object' && item.priceHistory) ? item.priceHistory : {};
+  }
+  function hasPriceData(item){
+    const h = historyOf(item);
+    return Object.keys(h).some(function(k){
+      return (h[k] && h[k].msrp) || (h[k] && (h[k].obs||[]).length);
+    });
+  }
+  // Every key you could track — deliberately includes formats you do NOT own, so a
+  // Blu-ray you already have can still track the 4K price you are waiting on.
+  function trackableKeys(type, item){
+    if(type === 'show'){
+      const keys = [];
+      showSeasons(item).forEach(function(se){
+        FORMAT_TYPES.forEach(function(t){ keys.push('S' + se.num + '·' + t); });
+      });
+      return keys.length ? keys : FORMAT_TYPES.slice();
+    }
+    return (type === 'book' ? BOOK_FORMAT_TYPES : FORMAT_TYPES).slice();
+  }
+  function obsSorted(entry){
+    return ((entry && entry.obs) || []).slice().sort(function(a,b){
+      return String(a.date||'').localeCompare(String(b.date||''));
+    });
+  }
+  function num(v){ const n = parseFloat(v); return isNaN(n) ? null : n; }
+
+  function refreshStoreSuggestions(){
+    const set = new Set();
+    [movies, shows, books].forEach(function(arr){
+      arr.forEach(function(it){
+        const h = historyOf(it);
+        Object.keys(h).forEach(function(k){
+          ((h[k]||{}).obs||[]).forEach(function(o){ if(o.store) set.add(o.store); });
+        });
+      });
+    });
+    $('storeSuggestions').innerHTML = [...set].sort().map(function(sname){
+      return '<option value="' + escapeHtml(sname) + '">';
+    }).join('');
+  }
+
+  // Compact price-over-time line with MSRP as a dashed reference.
+  function sparkline(entry){
+    const obs = obsSorted(entry).filter(function(o){ return num(o.price) !== null; });
+    if(obs.length < 2) return '';
+    const W = 300, H = 52, PAD = 6;
+    const vals = obs.map(function(o){ return num(o.price); });
+    const msrp = num(entry.msrp);
+    let lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+    if(msrp !== null){ lo = Math.min(lo, msrp); hi = Math.max(hi, msrp); }
+    if(hi === lo){ hi = lo + 1; }
+    const x = function(i){ return PAD + (i * (W - PAD*2)) / (obs.length - 1); };
+    const y = function(v){ return H - PAD - ((v - lo) / (hi - lo)) * (H - PAD*2); };
+    const pts = vals.map(function(v,i){ return x(i) + ',' + y(v).toFixed(1); }).join(' ');
+    const minV = Math.min.apply(null, vals);
+    const dots = vals.map(function(v,i){
+      const isLow = v === minV;
+      return '<circle cx="' + x(i).toFixed(1) + '" cy="' + y(v).toFixed(1) + '" r="' + (isLow?3.2:2.2) +
+        '" fill="' + (isLow ? '#5fbf6f' : 'var(--accent)') + '"></circle>';
+    }).join('');
+    const msrpLine = msrp !== null
+      ? '<line x1="' + PAD + '" y1="' + y(msrp).toFixed(1) + '" x2="' + (W-PAD) + '" y2="' + y(msrp).toFixed(1) +
+        '" stroke="var(--text-faint)" stroke-width="1" stroke-dasharray="4 3"></line>'
+      : '';
+    return '<svg class="ph-spark" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true">' +
+      msrpLine +
+      '<polyline points="' + pts + '" fill="none" stroke="var(--accent)" stroke-width="1.8" stroke-linejoin="round"></polyline>' +
+      dots + '</svg>';
+  }
+
+  function renderPriceHistory(){
+    if(!priceCtx) return;
+    const item = findItem(priceCtx.type, priceCtx.id);
+    if(!item){ $('priceOverlay').classList.remove('open'); return; }
+    $('priceTitle').textContent = item.title || 'Price History';
+    const h = historyOf(item);
+    const keys = Object.keys(h);
+    let html = '';
+    if(!keys.length){
+      html = '<p class="ph-empty">Nothing tracked yet. Pick a format below and hit Track to start logging prices.</p>';
+    }
+    keys.forEach(function(k){
+      const entry = h[k] || {};
+      const obs = obsSorted(entry);
+      const vals = obs.map(function(o){ return num(o.price); }).filter(function(v){ return v !== null; });
+      const msrp = num(entry.msrp);
+      const latest = obs.length ? obs[obs.length-1] : null;
+      const lowest = vals.length ? Math.min.apply(null, vals) : null;
+      const lowObs = lowest !== null ? obs.filter(function(o){ return num(o.price) === lowest; })[0] : null;
+      const offPct = (msrp !== null && lowest !== null && msrp > 0)
+        ? Math.round((1 - lowest/msrp) * 100) : null;
+
+      let summary = '';
+      if(latest) summary += '<span class="ph-stat">latest <b>$' + num(latest.price).toFixed(2) + '</b></span>';
+      if(lowest !== null) summary += '<span class="ph-stat low">lowest <b>$' + lowest.toFixed(2) + '</b></span>';
+      if(offPct !== null) summary += '<span class="ph-stat low"><b>' + offPct + '%</b> off MSRP</span>';
+      if(lowObs && lowObs.store) summary += '<span class="ph-stat">best at <b>' + escapeHtml(lowObs.store) + '</b></span>';
+
+      html += '<div class="ph-section" data-key="' + escapeHtml(k) + '">' +
+        '<div class="ph-head">' +
+          '<span class="badge ' + (FORMAT_CLASS[k.split('·').pop()] || BOOK_FORMAT_CLASS[k] || '') + '">' + escapeHtml(k) + '</span>' +
+          '<span class="ph-msrp"><label for="msrp_' + escapeHtml(k) + '">MSRP</label>' +
+            '<input type="number" step="0.01" min="0" id="msrp_' + escapeHtml(k) + '" value="' + (entry.msrp||'') + '" placeholder="34.99" data-msrp="' + escapeHtml(k) + '"></span>' +
+        '</div>' +
+        (summary ? '<div class="ph-summary">' + summary + '</div>' : '') +
+        sparkline(entry) +
+        (obs.length ? obs.slice().reverse().map(function(o){
+          const isLow = num(o.price) === lowest;
+          return '<div class="ph-obs">' +
+            '<span class="o-date">' + escapeHtml(o.date||'—') + '</span>' +
+            '<span class="o-store">' + escapeHtml(o.store||'—') + '</span>' +
+            '<span class="o-price' + (isLow?' lowest':'') + '">$' + (num(o.price)!==null?num(o.price).toFixed(2):'—') + '</span>' +
+            '<button type="button" class="o-del" data-del-key="' + escapeHtml(k) + '" data-del-date="' + escapeHtml(o.date||'') + '" data-del-store="' + escapeHtml(o.store||'') + '" data-del-price="' + escapeHtml(String(o.price)) + '" aria-label="Remove">✕</button>' +
+          '</div>';
+        }).join('') : '<p class="ph-empty">No prices logged yet.</p>') +
+        '<div class="ph-add">' +
+          '<input class="a-store" type="text" placeholder="Store" list="storeSuggestions" data-add-store="' + escapeHtml(k) + '">' +
+          '<input class="a-price" type="number" step="0.01" min="0" placeholder="Price" data-add-price="' + escapeHtml(k) + '">' +
+          '<input class="a-date" type="date" value="' + new Date().toISOString().slice(0,10) + '" data-add-date="' + escapeHtml(k) + '">' +
+          '<button type="button" data-add-btn="' + escapeHtml(k) + '">Add</button>' +
+        '</div>' +
+      '</div>';
+    });
+    $('priceContent').innerHTML = html;
+
+    // formats not yet tracked
+    const remaining = trackableKeys(priceCtx.type, item).filter(function(k){ return keys.indexOf(k) === -1; });
+    const sel = $('priceAddKey');
+    sel.innerHTML = remaining.map(function(k){ return '<option value="' + escapeHtml(k) + '">' + escapeHtml(k) + '</option>'; }).join('');
+    sel.parentElement.style.display = remaining.length ? '' : 'none';
+
+    $('priceContent').querySelectorAll('[data-msrp]').forEach(function(inp){
+      inp.addEventListener('change', function(e){
+        const k = e.target.dataset.msrp;
+        mutateHistory(function(hh){ hh[k] = hh[k] || {msrp:'', obs:[]}; hh[k].msrp = e.target.value; });
+      });
+    });
+    $('priceContent').querySelectorAll('[data-add-btn]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        const k = btn.dataset.addBtn;
+        const store = $('priceContent').querySelector('[data-add-store="' + CSS.escape(k) + '"]').value.trim();
+        const priceEl = $('priceContent').querySelector('[data-add-price="' + CSS.escape(k) + '"]');
+        const date = $('priceContent').querySelector('[data-add-date="' + CSS.escape(k) + '"]').value;
+        if(num(priceEl.value) === null){ showToast('Enter a price', true); return; }
+        mutateHistory(function(hh){
+          hh[k] = hh[k] || {msrp:'', obs:[]};
+          hh[k].obs = hh[k].obs || [];
+          hh[k].obs.push({store:store, price:priceEl.value, date:date});
+        });
+      });
+    });
+    $('priceContent').querySelectorAll('[data-del-key]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        const d = btn.dataset;
+        mutateHistory(function(hh){
+          const arr = (hh[d.delKey]||{}).obs || [];
+          const i = arr.findIndex(function(o){
+            return String(o.date||'') === d.delDate && String(o.store||'') === d.delStore && String(o.price) === d.delPrice;
+          });
+          if(i > -1) arr.splice(i,1);
+        });
+      });
+    });
+  }
+
+  // Applies a change to the open item's history and persists it.
+  async function mutateHistory(fn){
+    if(!priceCtx) return;
+    const item = findItem(priceCtx.type, priceCtx.id);
+    if(!item) return;
+    const h = Object.assign({}, historyOf(item));
+    Object.keys(h).forEach(function(k){ h[k] = {msrp:(h[k]||{}).msrp||'', obs:((h[k]||{}).obs||[]).slice()}; });
+    fn(h);
+    item.priceHistory = h;
+    refreshStoreSuggestions();
+    renderPriceHistory();
+    if(cloudOn()){
+      colOf(priceCtx.type).doc(item.id).set(item).catch(function(){ setSyncState('error'); });
+    } else {
+      await saveOf(priceCtx.type);
+    }
+    renderMovies();   // refresh the card's button state
+  }
+
+  function openPriceHistory(type, id){
+    priceCtx = {type:type, id:id};
+    refreshStoreSuggestions();
+    renderPriceHistory();
+    $('priceOverlay').classList.add('open');
+  }
+  $('priceAddKeyBtn').addEventListener('click', function(){
+    const k = $('priceAddKey').value;
+    if(!k) return;
+    mutateHistory(function(hh){ hh[k] = hh[k] || {msrp:'', obs:[]}; });
+  });
+  function closePriceHistory(){ $('priceOverlay').classList.remove('open'); priceCtx = null; }
+  $('closePriceBtn').addEventListener('click', closePriceHistory);
+  $('priceCloseBtn').addEventListener('click', closePriceHistory);
+  $('priceOverlay').addEventListener('click', function(e){ if(e.target === $('priceOverlay')) closePriceHistory(); });
+
+  const PRICE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,17 9,11 13,15 21,7"></polyline><polyline points="15,7 21,7 21,13"></polyline></svg>';
+  function priceBtnHtml(item){
+    return '<button type="button" class="price-hist-btn' + (hasPriceData(item) ? ' has-data' : '') +
+      '" data-price-btn="' + item.id + '" aria-label="Price history" title="Price history">' + PRICE_ICON + '</button>';
+  }
+  // One delegated handler for all three grids; stopPropagation keeps the card from opening.
+  $('movieGrid').addEventListener('click', function(e){
+    const btn = e.target.closest('[data-price-btn]');
+    if(!btn) return;
+    e.stopPropagation();
+    const type = currentMode === 'books' ? 'book' : currentMode === 'shows' ? 'show' : 'movie';
+    openPriceHistory(type, btn.dataset.priceBtn);
+  }, true);
 
   // ---------- Modal: open/close ----------
   function buildFormatGrid(){
