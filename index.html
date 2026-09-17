@@ -155,14 +155,36 @@
   }
   .segmented button.active{background:var(--accent); color:#14141a;}
   /* ---------- Price history ---------- */
-  .card-footer-right{display:flex; align-items:center; gap:4px;}
+  .card-footer{flex-wrap:wrap-reverse; row-gap:7px;}
+  .card-footer-right{display:flex; align-items:center; gap:4px; margin-left:auto;}
+
+  /* ---------- Award icons (bottom-left of the movie card) ---------- */
+  .card-awards{display:flex; align-items:center; gap:9px; min-height:24px; padding-right:8px;}
+  .award{position:relative; display:inline-flex; width:24px; height:24px; flex:0 0 auto;}
+  .award svg{width:100%; height:100%; display:block;}
+  .award.oscar{color:#f0c030;}
+  .award.globe{color:#e8a33b;}
+  .award.bafta{color:#c98a4b;}
+  .award.emmy{color:#cfd3dc;}
+  .award.wins{color:#6fbf73;}
+  .award-count{
+    position:absolute; top:-6px; right:-8px;
+    min-width:15px; height:15px; padding:0 3px; border-radius:8px;
+    background:#eeece5; color:#14141a; border:1.5px solid var(--surface);
+    font-family:var(--font-mono); font-size:9px; font-weight:700; line-height:12px; text-align:center;
+  }
+  .detail-awards{font-size:12.5px; color:var(--text-dim); margin-top:4px;}
   .price-hist-btn{
     background:var(--surface-2); border:1px solid var(--border); color:var(--text-faint);
     border-radius:6px; padding:2px 5px; line-height:0; flex:0 0 auto;
   }
   .price-hist-btn svg{width:13px; height:13px; display:block;}
   .price-hist-btn:hover{color:var(--accent-light); border-color:var(--accent);}
-  .price-hist-btn.has-data{color:var(--accent); border-color:var(--accent);}
+  .price-hist-btn.has-data{color:#0f2a16; background:#5fbf6f; border-color:#5fbf6f;}
+  .price-hist-btn.has-data:hover{color:#0f2a16; background:#7ad48a; border-color:#7ad48a;}
+  .chip.tracked-chip{display:inline-flex; align-items:center; gap:5px;}
+  .chip.tracked-chip svg{width:13px; height:13px;}
+  .chip.tracked-chip.active{color:#5fbf6f; border-color:#5fbf6f; background:rgba(95,191,111,0.14);}
 
   .ph-section{
     border:1px solid var(--border); border-radius:var(--radius-sm);
@@ -739,6 +761,8 @@
     .card-hole{width:9px; height:9px; top:7px; left:7px;}
     .wishlist-ribbon{top:7px; font-size:8px; padding:2px 7px 2px 9px;}
     .poster-placeholder{font-size:26px;}
+    .award{width:19px; height:19px;}
+    .card-awards{gap:8px; min-height:19px;}
 
     /* List view keeps its single-column flex layout; just tighten the spacing */
     .movie-grid.list-mode{gap:7px; padding:0 10px 32px;}
@@ -778,7 +802,7 @@
       </div>
     </div>
     <div class="search-row">
-      <input type="text" class="search-input" id="searchInput" placeholder="Search title, tag, or collection…">
+      <input type="text" class="search-input" id="searchInput" placeholder="Search title, director, tag, or collection…">
     </div>
     <div class="stats-strip" id="statsStrip"></div>
     <div class="filter-bar">
@@ -788,6 +812,10 @@
         <button data-mode="wishlist">Wishlist</button>
         <button data-mode="researched">Researched</button>
       </div>
+      <button type="button" class="chip tracked-chip" id="trackedChip" aria-pressed="false" title="Only items with logged prices">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3,17 9,11 13,15 21,7"></polyline><polyline points="15,7 21,7 21,13"></polyline></svg>
+        Tracked
+      </button>
       <div class="chip-scroll" id="formatChips">
         <button class="chip fmt-4k" data-fmt="4K UHD">4K UHD</button>
         <button class="chip fmt-bluray" data-fmt="Blu-ray">Blu-ray</button>
@@ -819,6 +847,8 @@
         <option value="year-old">Year: oldest</option>
         <option value="price-high">Price: high–low</option>
         <option value="rating">Rating: high–low</option>
+        <option value="drop">Biggest drop vs MSRP</option>
+        <option value="awards">Awards: most first</option>
       </select>
       <select class="sort-select" id="acquiredMonthSelect" title="Filter by date acquired">
         <option value="">📅 All months</option>
@@ -1361,6 +1391,7 @@
   let pendingUpc = '';
   let pendingIsbn = '';
   let formRuntime = null, formImdbRating = null, formTmdbRating = null, formImdbId = '';
+  let formAwards = null;   // never undefined: Firestore rejects undefined field values
   let formContentRating = '';
   let formDirector = '';
   const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -1376,6 +1407,7 @@
   try{ viewMode = localStorage.getItem('view-mode') || 'grid'; }catch(e){}
   let activeCollection = '';
   let activeAcquiredMonth = '';
+  let filterTracked = false;      // only items with logged prices; independent of status
   // Status is a three-way choice. `wishlist` stays a boolean so existing rows keep working;
   // `researched` ("maybe") is layered on top and wins if both are somehow set.
   const isResearched = x => !!x.researched;
@@ -1763,6 +1795,7 @@
     let list = movies.slice();
     if(filterMode === 'owned') list = list.filter(isOwned);
     if(filterMode === 'researched') list = list.filter(isResearched);
+    if(filterTracked) list = list.filter(hasPriceData);
     if(filterMode === 'wishlist') list = list.filter(isWishlisted);
     if(activeFormatFilters.size){
       list = list.filter(m => (m.formats||[]).some(f => activeFormatFilters.has(f.type)));
@@ -1780,6 +1813,7 @@
       const q = searchQuery.trim().toLowerCase();
       list = list.filter(m =>
         (m.title||'').toLowerCase().includes(q) ||
+        (m.director||'').toLowerCase().includes(q) ||
         (m.tags||[]).some(t=>t.toLowerCase().includes(q)) ||
         (m.collections||[]).some(c=>c.toLowerCase().includes(q))
       );
@@ -1790,6 +1824,8 @@
       case 'year-old': list.sort((a,b)=> (a.year||9999) - (b.year||9999)); break;
       case 'price-high': list.sort((a,b)=> priceOf(b) - priceOf(a)); break;
       case 'rating': list.sort((a,b)=> (b.rating||0) - (a.rating||0)); break;
+      case 'drop': list.sort((a,b)=> (bestDropPct(b) - bestDropPct(a)) || (a.title||'').localeCompare(b.title||'')); break;
+      case 'awards': list.sort((a,b)=> (awardScore(b) - awardScore(a)) || (a.title||'').localeCompare(b.title||'')); break;
       default: list.sort((a,b)=> (b.dateAdded||0) - (a.dateAdded||0));
     }
     return list;
@@ -1803,6 +1839,7 @@
     if(filterMode === 'owned') list = list.filter(isOwned);
     if(filterMode === 'wishlist') list = list.filter(isWishlisted);
     if(filterMode === 'researched') list = list.filter(isResearched);
+    if(filterTracked) list = list.filter(hasPriceData);
     if(activeShowFormatFilters.size){
       list = list.filter(sh => showFormatTypes(sh).some(t => activeShowFormatFilters.has(t)));
     }
@@ -1827,6 +1864,8 @@
       case 'year-old': list.sort((a,b)=> (a.firstAirYear||9999) - (b.firstAirYear||9999)); break;
       case 'price-high': list.sort((a,b)=> showPriceOf(b) - showPriceOf(a)); break;
       case 'rating': list.sort((a,b)=> (b.rating||0) - (a.rating||0)); break;
+      case 'drop': list.sort((a,b)=> (bestDropPct(b) - bestDropPct(a)) || (a.title||'').localeCompare(b.title||'')); break;
+      case 'awards': list.sort((a,b)=> (awardScore(b) - awardScore(a)) || (a.title||'').localeCompare(b.title||'')); break;
       default: list.sort((a,b)=> (b.dateAdded||0) - (a.dateAdded||0));
     }
     return list;
@@ -1836,6 +1875,7 @@
     let list = books.slice();
     if(filterMode === 'owned') list = list.filter(isOwned);
     if(filterMode === 'researched') list = list.filter(isResearched);
+    if(filterTracked) list = list.filter(hasPriceData);
     if(filterMode === 'wishlist') list = list.filter(isWishlisted);
     if(activeBookFormatFilters.size){
       list = list.filter(b => (b.formats||[]).some(f => activeBookFormatFilters.has(f.type)));
@@ -1865,6 +1905,8 @@
       case 'year-old': list.sort((a,b)=> (a.publishYear||9999) - (b.publishYear||9999)); break;
       case 'price-high': list.sort((a,b)=> bookPriceOf(b) - bookPriceOf(a)); break;
       case 'rating': list.sort((a,b)=> (b.rating||0) - (a.rating||0)); break;
+      case 'drop': list.sort((a,b)=> (bestDropPct(b) - bestDropPct(a)) || (a.title||'').localeCompare(b.title||'')); break;
+      case 'awards': list.sort((a,b)=> (awardScore(b) - awardScore(a)) || (a.title||'').localeCompare(b.title||'')); break;
       default: list.sort((a,b)=> (b.dateAdded||0) - (a.dateAdded||0));
     }
     return list;
@@ -2028,6 +2070,55 @@
     const v = VERDICTS[m.verdict];
     return v ? `<span class="badge verdict-chip ${v.cls}">${v.chip}</span>` : '';
   }
+  // OMDb's Awards field is prose. It names at most ONE headline award (the most prestigious),
+  // then a total. Current format: "Won 2 Oscars. 124 wins & 156 nominations total".
+  // Older cached records say "Another 45 wins", which already EXCLUDES the headline award.
+  const AWARD_ICONS = {
+    oscar: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="3.6" r="2.2"/><path d="M10.1 6.3h3.8l-.6 4.8.9 6.1h-1.5l-.7-4.4-.7 4.4h-1.5l.9-6.1z"/><rect x="8.6" y="17.6" width="6.8" height="1.9" rx=".4"/><rect x="7.4" y="19.9" width="9.2" height="2.3" rx=".5"/></svg>',
+    globe: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8.6" r="6.3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5.8 8.6h12.4M12 2.4c2.3 2 2.3 10.4 0 12.4M12 2.4c-2.3 2-2.3 10.4 0 12.4" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M10.2 15.6h3.6l1 3.4H9.2z"/><rect x="7" y="19.4" width="10" height="2.6" rx=".6"/></svg>',
+    bafta: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 2.8h14v7.4c0 5.1-3.2 9.1-7 11-3.8-1.9-7-5.9-7-11z"/><ellipse cx="9" cy="9" rx="1.7" ry="1.15" fill="#14141a"/><ellipse cx="15" cy="9" rx="1.7" ry="1.15" fill="#14141a"/><path d="M8.8 13.8c2 1.4 4.4 1.4 6.4 0" fill="none" stroke="#14141a" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    emmy: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="3.8" r="2.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M12 7.2c-3 1.1-6 .6-8.2-1 1 4.2 4.1 7.2 8.2 8.2 4.1-1 7.2-4 8.2-8.2-2.2 1.6-5.2 2.1-8.2 1z"/><path d="M11 13.6h2l1 5h-4z"/><rect x="8" y="18.9" width="8" height="3.1" rx=".6"/></svg>',
+    wins: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6.4 1.8h4.3l2.5 6.4-2.7 1.4z"/><path d="M17.6 1.8h-4.3l-2.5 6.4 2.7 1.4z"/><circle cx="12" cy="15.3" r="6.4"/><circle cx="12" cy="15.3" r="3.6" fill="none" stroke="#14141a" stroke-width="1.4"/></svg>'
+  };
+  const AWARD_NAMES = {oscar:['Oscar','Oscars'], globe:['Golden Globe','Golden Globes'], bafta:['BAFTA','BAFTAs'], emmy:['Emmy','Emmys'], wins:['other award win','other award wins']};
+
+  function parseAwards(str){
+    if(typeof str !== 'string' || !str || str === 'N/A') return [];
+    const out = [];
+    let major = 0;
+    const m = str.match(/Won (\d+) (Oscar|Primetime Emmy|Golden Globe|BAFTA(?: Film| TV)? Award)s?/i);
+    if(m){
+      const t = m[2].toLowerCase();
+      const kind = t.indexOf('oscar') > -1 ? 'oscar' : t.indexOf('emmy') > -1 ? 'emmy' : t.indexOf('globe') > -1 ? 'globe' : 'bafta';
+      major = parseInt(m[1], 10);
+      if(major > 0) out.push({kind: kind, count: major});
+    }
+    let other = 0;
+    const another = str.match(/Another (\d+) wins?\b/i);
+    if(another) other = parseInt(another[1], 10);
+    else {
+      const w = str.match(/(\d+) wins?\b/i);
+      if(w) other = parseInt(w[1], 10) - major;
+    }
+    if(other > 0) out.push({kind: 'wins', count: other});
+    return out;
+  }
+
+  // Prestige-weighted so a headline award always outranks a pile of minor ones:
+  // 3 Oscars (3000) beats 172 other wins (172), and any Oscar beats any Golden Globe count
+  // anyone realistically has. Unchecked or "N/A" scores 0 and sorts alphabetically at the end.
+  const AWARD_WEIGHT = {oscar:1000, emmy:1000, globe:300, bafta:200, wins:1};
+  function awardScore(item){
+    return parseAwards(item.awards).reduce(function(sum, a){ return sum + a.count * AWARD_WEIGHT[a.kind]; }, 0);
+  }
+  function awardIconsHtml(item){
+    return parseAwards(item.awards).map(function(a){
+      const label = (a.kind === 'wins' ? '' : 'Won ') + a.count + ' ' + AWARD_NAMES[a.kind][a.count === 1 ? 0 : 1];
+      const bubble = a.count > 1 ? '<span class="award-count">' + (a.count > 99 ? '99+' : a.count) + '</span>' : '';
+      return '<span class="award ' + a.kind + '" title="' + label + '" aria-label="' + label + '" role="img">' + AWARD_ICONS[a.kind] + bubble + '</span>';
+    }).join('');
+  }
+
   function statusRibbon(x){
     if(isResearched(x)) return '<div class="wishlist-ribbon ribbon-researched">RESEARCHED</div>';
     if(isWishlisted(x)) return '<div class="wishlist-ribbon">WISHLIST</div>';
@@ -2041,7 +2132,6 @@
     if(m.hdrType === 'Dolby Vision'){ const c=badgeColor('Dolby Vision'); badges += `<span class="badge quality" style="background:${c}; color:${contrastText(c)}">DOLBY VISION</span>`; }
     badges += verdictChip(m);
     const stars = [1,2,3,4,5].map(i => `<span class="star-static ${i<=(m.rating||0)?'filled':''}">★</span>`).join('');
-    const price = priceOf(m);
     const showUpgrade = m.upgradePrice && !formats.some(f=>f.type==='4K UHD');
     const upgradeChip = showUpgrade ? `<span class="upgrade-chip">↑ $${m.upgradePrice.toFixed(2)}</span>` : '';
     const tags = (m.tags||[]).slice(0,2).map(t=>`<span class="tag-pill-mini" style="${tagStyle(t)}">${escapeHtml(t)}</span>`).join('');
@@ -2072,7 +2162,7 @@
           <div class="badges">${badges}</div>
           ${m.rating ? `<div class="stars-row">${stars}</div>` : ''}
           <div class="card-footer">
-            <span class="price-tag">${(isOwned(m) && price>0) ? '$'+price.toFixed(2) : ''}${upgradeChip}</span>
+            <span class="card-awards">${awardIconsHtml(m)}${upgradeChip}</span>
             <span class="card-footer-right">${tags}${priceBtnHtml(m)}</span>
           </div>
         </div>
@@ -2165,7 +2255,7 @@
           <div class="badges">${badges}</div>
           ${sh.rating ? `<div class="stars-row">${stars}</div>` : ''}
           <div class="card-footer">
-            <span class="price-tag">${(isOwned(sh) && price>0) ? '$'+price.toFixed(2) : ''}</span>
+            <span class="card-awards">${awardIconsHtml(sh)}<span class="price-tag">${(isOwned(sh) && price>0) ? '$'+price.toFixed(2) : ''}</span></span>
             <span class="card-footer-right">${tags}${priceBtnHtml(sh)}</span>
           </div>
         </div>
@@ -2337,6 +2427,12 @@
 
   // ---------- Filters / search / sort ----------
   $('searchInput').addEventListener('input', e=>{ searchQuery = e.target.value; renderMovies(); });
+  $('trackedChip').addEventListener('click', ()=>{
+    filterTracked = !filterTracked;
+    $('trackedChip').classList.toggle('active', filterTracked);
+    $('trackedChip').setAttribute('aria-pressed', String(filterTracked));
+    renderMovies();
+  });
   $('segmented').addEventListener('click', e=>{
     const btn = e.target.closest('button'); if(!btn) return;
     filterMode = btn.dataset.mode;
@@ -2395,9 +2491,12 @@
     $('readStatusChips').style.display = isBooks ? '' : 'none';
     $('tmdbKeyBtn').style.display = isBooks ? 'none' : '';      // TMDB covers movies and TV
     $('omdbKeyBtn').style.display = isBooks ? 'none' : '';
+    const awardsOpt = $('sortSelect').querySelector('option[value="awards"]');
+    awardsOpt.disabled = isBooks; awardsOpt.hidden = isBooks;   // hidden isn't honoured by iOS Safari; disabled is
+    if(isBooks && sortBy === 'awards'){ sortBy = 'recent'; $('sortSelect').value = 'recent'; }
     $('searchInput').placeholder = isBooks ? 'Search title, author, genre, series…'
       : isShows ? 'Search title, creator, tag, or collection…'
-      : 'Search title, tag, or collection…';
+      : 'Search title, director, tag, or collection…';
     searchQuery = '';
     $('searchInput').value = '';
     activeAcquiredMonth = '';
@@ -2453,7 +2552,7 @@
   async function fetchMovieExtras(tmdbId, tmdbVote){
     const seq = ++extrasSeq;
     formTmdbRating = (tmdbVote || tmdbVote === 0) ? Math.round(tmdbVote * 10) / 10 : null;
-    formRuntime = null; formImdbRating = null; formImdbId = ''; formContentRating = ''; formDirector = '';
+    formRuntime = null; formImdbRating = null; formImdbId = ''; formContentRating = ''; formDirector = ''; formAwards = null;
     if(!tmdbId) return;
     try{
       const [dres, crres] = await Promise.all([
@@ -2473,6 +2572,7 @@
         if(seq !== extrasSeq) return;
         const iv = parseFloat(od.imdbRating);
         if(!isNaN(iv)) formImdbRating = iv;
+        if(typeof od.Awards === 'string') formAwards = od.Awards;
       }
     }catch(e){}
   }
@@ -2902,6 +3002,23 @@
   function historyOf(item){
     return (item && typeof item.priceHistory === 'object' && item.priceHistory) ? item.priceHistory : {};
   }
+  // Biggest % below MSRP across an item's tracked formats, from the lowest price logged —
+  // the same figure the Price History popup shows as "% off MSRP", so the order matches it.
+  // Priced above MSRP ranks below any real drop; nothing to compare ranks last of all.
+  function bestDropPct(item){
+    const h = historyOf(item);
+    let best = -Infinity;
+    Object.keys(h).forEach(function(k){
+      const e = h[k] || {};
+      const msrp = num(e.msrp);
+      const vals = (e.obs || []).map(function(o){ return num(o.price); }).filter(function(v){ return v !== null; });
+      if(msrp && msrp > 0 && vals.length){
+        const pct = (1 - Math.min.apply(null, vals) / msrp) * 100;
+        if(pct > best) best = pct;
+      }
+    });
+    return best;
+  }
   function hasPriceData(item){
     const h = historyOf(item);
     return Object.keys(h).some(function(k){
@@ -3260,7 +3377,7 @@
     formPosterData = '';
     formPosterUrl = '';
     pendingUpc = '';
-    formRuntime = null; formImdbRating = null; formTmdbRating = null; formImdbId = '';
+    formRuntime = null; formImdbRating = null; formTmdbRating = null; formImdbId = ''; formAwards = null;
     $('releaseMonthSelect').value = ''; formContentRating = ''; formDirector = '';
     extrasSeq++; // cancel any in-flight extras fetch from a previous form
     checkDuplicate('');
@@ -3302,6 +3419,7 @@
     formPosterUrl = m.posterUrl || '';
     formRuntime = m.runtime || null;
     formImdbRating = m.imdbRating || null;
+    formAwards = (typeof m.awards === 'string') ? m.awards : null;
     formTmdbRating = m.tmdbRating || null;
     formImdbId = m.imdbId || '';
     $('releaseMonthSelect').value = m.releaseMonth || '';
@@ -3383,6 +3501,7 @@
       upc: existing ? (existing.upc || '') : pendingUpc,
       runtime: formRuntime,
       imdbRating: formImdbRating,
+      awards: formAwards,
       tmdbRating: formTmdbRating,
       imdbId: formImdbId,
       releaseMonth: $('releaseMonthSelect').value ? parseInt($('releaseMonthSelect').value) : null,
@@ -3445,6 +3564,7 @@
   let formShowPosterUrl = '', formShowPosterData = '';
   let formShowStatus = 'owned';
   let formShowTmdbRating = null, formShowImdbRating = null, formShowImdbId = '', formShowContentRating = '';
+  let formShowAwards = null;   // null = never checked (Firestore rejects undefined)
 
   function buildSeasonsEditor(){
     const wrap = $('seasonsWrap');
@@ -3561,7 +3681,7 @@
     $('showNotesInput').value = ''; $('showVerdictSelect').value = '';
     formShowSeasons = []; formShowRating = 0; formShowTags = []; formShowCollections = [];
     formShowPosterUrl = ''; formShowPosterData = '';
-    formShowTmdbRating = null; formShowImdbRating = null; formShowImdbId = ''; formShowContentRating = '';
+    formShowTmdbRating = null; formShowImdbRating = null; formShowImdbId = ''; formShowContentRating = ''; formShowAwards = null;
     $('showDupeWarn').classList.remove('show');
     $('showDeleteBtn').style.display = 'none';
     buildShowStarPicker();
@@ -3593,6 +3713,7 @@
     formShowTmdbRating = (typeof sh.tmdbRating === 'number') ? sh.tmdbRating : null;
     formShowImdbRating = (typeof sh.imdbRating === 'number') ? sh.imdbRating : null;
     formShowImdbId = sh.imdbId || ''; formShowContentRating = sh.contentRating || '';
+    formShowAwards = (typeof sh.awards === 'string') ? sh.awards : null;
     formShowSeasons = showSeasons(sh).map(function(se){
       return {num:String(se.num), formats:(se.formats||[]).map(function(f){ return {type:f.type, price:f.price}; }), acquiredDate:se.acquiredDate||''};
     });
@@ -3646,6 +3767,7 @@
       tmdbRating: formShowTmdbRating,
       imdbRating: formShowImdbRating,
       imdbId: formShowImdbId,
+      awards: formShowAwards,
       contentRating: formShowContentRating,
       seasons: seasons,
       rating: formShowRating,
@@ -4055,7 +4177,7 @@
   // ---------- Backfill: fetch missing runtime/ratings/posters/month/content-rating for old entries ----------
   function needsBackfill(m){
     return !m.runtime || !m.imdbId || !m.tmdbRating || !m.releaseMonth || !m.contentRating || !m.director
-      || (omdbKey() && !m.imdbRating)
+      || (omdbKey() && (!m.imdbRating || typeof m.awards !== 'string'))
       || (!m.posterUrl && !m.posterData);
   }
 
@@ -4089,11 +4211,14 @@
           }
         }
       }
-      if(omdbKey() && !m.imdbRating && m.imdbId){
+      if(omdbKey() && m.imdbId && (!m.imdbRating || typeof m.awards !== 'string')){
         const or = await fetch('https://www.omdbapi.com/?apikey=' + encodeURIComponent(omdbKey()) + '&i=' + encodeURIComponent(m.imdbId));
         const od = await or.json();
         const iv = parseFloat(od.imdbRating);
-        if(!isNaN(iv)){ m.imdbRating = iv; changed = true; }
+        if(!m.imdbRating && !isNaN(iv)){ m.imdbRating = iv; changed = true; }
+        // Stores "N/A" too, so a movie with no awards is checked once rather than every run.
+        // An error response (e.g. daily limit reached) has no Awards field, so it retries later.
+        if(typeof m.awards !== 'string' && typeof od.Awards === 'string'){ m.awards = od.Awards; changed = true; }
       }
     }catch(e){}
     return changed;
@@ -4104,7 +4229,7 @@
     const targets = movies.filter(needsBackfill);
     if(!targets.length){ showToast('Everything is already filled in'); return; }
     askConfirm('Backfill missing info?',
-      `This looks up ${targets.length} ${targets.length === 1 ? 'entry' : 'entries'} on TMDB${omdbKey() ? ' and OMDb' : ''} to fill in missing runtime, ratings, and posters. Nothing already filled in gets overwritten.`,
+      `This looks up ${targets.length} ${targets.length === 1 ? 'entry' : 'entries'} on TMDB${omdbKey() ? ' and OMDb' : ''} to fill in missing runtime, ratings, awards, and posters. Nothing already filled in gets overwritten.`,
       async ()=>{
         setSyncState('syncing');
         const changedList = [];
@@ -4126,6 +4251,74 @@
         }
         setSyncState('ok');
         showToast('Updated ' + changedList.length + ' of ' + targets.length + ' entries');
+      });
+  }
+
+  // ---------- Backfill for TV (TMDB /tv + OMDb) ----------
+  function needsShowBackfill(sh){
+    return !sh.tmdbRating || !sh.firstAirYear || !sh.contentRating || !sh.imdbId || !sh.creator
+      || (omdbKey() && (!sh.imdbRating || typeof sh.awards !== 'string'))
+      || (!sh.posterUrl && !sh.posterData);
+  }
+  async function backfillShowOne(sh){
+    let changed = false;
+    try{
+      if(!sh.tmdbRating || !sh.firstAirYear || !sh.contentRating || !sh.imdbId || !sh.creator || (!sh.posterUrl && !sh.posterData)){
+        const url = 'https://api.themoviedb.org/3/search/tv?api_key=' + encodeURIComponent(tmdbKey())
+          + '&query=' + encodeURIComponent(sh.title)
+          + (sh.firstAirYear ? '&first_air_date_year=' + sh.firstAirYear : '') + '&include_adult=false';
+        const data = await (await fetch(url)).json();
+        const sr = (data.results || [])[0];
+        if(sr){
+          if(!sh.tmdbRating && typeof sr.vote_average === 'number'){ sh.tmdbRating = Math.round(sr.vote_average * 10) / 10; changed = true; }
+          if(!sh.posterUrl && !sh.posterData && sr.poster_path){ sh.posterUrl = 'https://image.tmdb.org/t/p/w342' + sr.poster_path; changed = true; }
+          if(!sh.firstAirYear && sr.first_air_date){ const y = parseInt(sr.first_air_date.slice(0,4), 10); if(y){ sh.firstAirYear = y; changed = true; } }
+          if(!sh.contentRating || !sh.imdbId || !sh.creator){
+            // TV keeps the IMDb id under external_ids, not on the detail object like film does
+            const d = await (await fetch('https://api.themoviedb.org/3/tv/' + sr.id + '?api_key=' + encodeURIComponent(tmdbKey()) + '&append_to_response=content_ratings,external_ids')).json();
+            if(!sh.creator){ const c = creatorOf(d); if(c){ sh.creator = c; changed = true; } }
+            if(!sh.contentRating){ const r = usTvRating(d); if(r){ sh.contentRating = r; changed = true; } }
+            if(!sh.imdbId && d.external_ids && d.external_ids.imdb_id){ sh.imdbId = d.external_ids.imdb_id; changed = true; }
+          }
+        }
+      }
+      if(omdbKey() && sh.imdbId && (!sh.imdbRating || typeof sh.awards !== 'string')){
+        const od = await (await fetch('https://www.omdbapi.com/?apikey=' + encodeURIComponent(omdbKey()) + '&i=' + encodeURIComponent(sh.imdbId))).json();
+        const iv = parseFloat(od.imdbRating);
+        if(!sh.imdbRating && !isNaN(iv)){ sh.imdbRating = iv; changed = true; }
+        // "N/A" is stored too so a show with no awards is checked once; error replies retry later
+        if(typeof sh.awards !== 'string' && typeof od.Awards === 'string'){ sh.awards = od.Awards; changed = true; }
+      }
+    }catch(e){}
+    return changed;
+  }
+  async function backfillAllShows(){
+    if(!tmdbKey()){ showToast('Add your TMDB key first', true); return; }
+    const targets = shows.filter(needsShowBackfill);
+    if(!targets.length){ showToast('Everything is already filled in'); return; }
+    askConfirm('Backfill missing info?',
+      `This looks up ${targets.length} ${targets.length === 1 ? 'show' : 'shows'} on TMDB${omdbKey() ? ' and OMDb' : ''} to fill in missing creator, ratings, awards, and posters. Nothing already filled in gets overwritten.`,
+      async ()=>{
+        setSyncState('syncing');
+        const changedList = [];
+        for(let i = 0; i < targets.length; i++){
+          if(await backfillShowOne(targets[i])) changedList.push(targets[i]);
+          if((i + 1) % 5 === 0) showToast('Backfilling… ' + (i + 1) + '/' + targets.length);
+        }
+        if(changedList.length){
+          if(cloudOn()){
+            for(let i = 0; i < changedList.length; i += 450){
+              const batch = fbDb.batch();
+              changedList.slice(i, i + 450).forEach(sh=> batch.set(showCol().doc(sh.id), sh));
+              batch.commit().catch(()=> setSyncState('error'));
+            }
+          } else {
+            await saveShows(true);
+          }
+          render();
+        }
+        setSyncState('ok');
+        showToast('Updated ' + changedList.length + ' of ' + targets.length + ' shows');
       });
   }
 
@@ -4184,7 +4377,7 @@
 
   $('backfillBtn').addEventListener('click', ()=>{
     $('menuDropdown').classList.remove('open');
-    if(currentMode === 'shows'){ showToast('Backfill is not wired up for TV yet', true); return; }
+    if(currentMode === 'shows'){ backfillAllShows(); return; }
     if(currentMode === 'books') backfillAllBooks(); else backfillAll();
   });
 
@@ -4439,6 +4632,7 @@
       <div class="detail-header-info">
         <div class="card-year">${escapeHtml(infoLine)}</div>
         ${m.director ? `<div class="card-year card-director">${escapeHtml(m.director)}</div>` : ''}
+        ${(typeof m.awards === 'string' && m.awards !== 'N/A') ? `<div class="detail-awards">🏆 ${escapeHtml(m.awards)}</div>` : ''}
         ${scoreRow(m)}
         <div class="detail-badges">${badges}</div>
       </div>
@@ -4566,7 +4760,7 @@
   async function fetchShowExtras(tmdbId, vote){
     const seq = ++showExtrasSeq;
     formShowTmdbRating = (vote || vote === 0) ? Math.round(vote * 10) / 10 : null;
-    formShowImdbRating = null; formShowImdbId = ''; formShowContentRating = '';
+    formShowImdbRating = null; formShowImdbId = ''; formShowContentRating = ''; formShowAwards = null;
     if(!tmdbId) return;
     try{
       // One call: credits (creator), content_ratings (TV-MA), external_ids (imdb id for OMDb)
@@ -4586,6 +4780,7 @@
         if(seq !== showExtrasSeq) return;
         const iv = parseFloat(od.imdbRating);
         if(!isNaN(iv)) formShowImdbRating = iv;
+        if(typeof od.Awards === 'string') formShowAwards = od.Awards;
       }
     }catch(e){}
   }
@@ -4666,6 +4861,7 @@
       '<div class="detail-header-info">' +
         '<div class="card-year">' + escapeHtml(infoLine) + '</div>' +
         (sh.creator ? '<div class="card-year card-director">' + escapeHtml(sh.creator) + '</div>' : '') +
+        ((typeof sh.awards === 'string' && sh.awards !== 'N/A') ? '<div class="detail-awards">🏆 ' + escapeHtml(sh.awards) + '</div>' : '') +
         scoreRow(sh) +
         '<div class="detail-badges">' + badges + '</div>' +
       '</div></div>';
